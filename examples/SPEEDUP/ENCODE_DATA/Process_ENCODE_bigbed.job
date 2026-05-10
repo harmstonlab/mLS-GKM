@@ -1,0 +1,28 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=3-00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --job-name=process_bigbed
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
+#SBATCH --array=1-333%75
+
+# Environment
+
+conda activate mlsgkm
+
+config_file=bigbed_list.tsv
+FILE_NAME=$(awk -v SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID '$1==SLURM_ARRAY_TASK_ID {print $2}' $config_file)
+EXP_NAME=$(awk -v SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID '$1==SLURM_ARRAY_TASK_ID {print $3}' $config_file)
+
+echo "Processing file: $FILE_NAME"
+
+
+python ./process_bigbed.py \
+    --genome-fasta hg19/hg19.fa \
+    --input-bb bigbed/$FILE_NAME \
+    --output-dir FASTAs/$EXP_NAME/ \
+    --max-tries-per-region -1 \
+    --quiet

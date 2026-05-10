@@ -1,0 +1,33 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=3-00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=750M
+#SBATCH --job-name=Predict_LS-GKM
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
+#SBATCH --array=1-333%75
+
+config_file=bigbed_list.tsv
+EXP_NAME=$(awk -v SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID '$1==SLURM_ARRAY_TASK_ID {print $3}' $config_file)
+
+mkdir -p Predictions/LS-GKM_Models/$EXP_NAME
+
+
+echo "Running Predictions for Positive Set"
+../../../bin/gkmpredict \
+    -T 4 \
+    FASTAs/$EXP_NAME/test_positive.fa \
+    Models/LS-GKM_Models/$EXP_NAME.model.txt \
+    Predictions/LS-GKM_Models/$EXP_NAME/positive_predictions.txt \
+
+echo "Running Predictions for Negative Set"
+../../../bin/gkmpredict \
+    -T 4 \
+    FASTAs/$EXP_NAME/test_negative.fa \
+    Models/LS-GKM_Models/$EXP_NAME.model.txt \
+    Predictions/LS-GKM_Models/$EXP_NAME/negative_predictions.txt \
+
+echo "Combining Predictions"
+cat Predictions/LS-GKM_Models/$EXP_NAME/positive_predictions.txt Predictions/LS-GKM_Models/$EXP_NAME/negative_predictions.txt > Predictions/LS-GKM_Models/$EXP_NAME/all_predictions.txt

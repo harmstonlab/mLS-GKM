@@ -1,0 +1,34 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=3-00:00
+#SBATCH --ntasks=1
+#SBATCH --mem=1500M
+#SBATCH --cpus-per-task=3
+#SBATCH --job-name=Synth_svmw_emalign
+#SBATCH --error=%x-%J.log
+#SBATCH --output=%x-%J.log
+
+shopt -s nullglob
+
+for top_frac in 1 5 10; do
+        for ftype in D P; do
+            
+        marker_s=$(mktemp)
+        marker_d=$(mktemp)
+        ../../../scripts/svmw_emalign \
+                -t 3 \
+                --classes A,B,C \
+                --top_frac "${top_frac}" \
+                -n 20 \
+                ./motifs_${ftype}/kmers_11_scores.txt \
+                20 \
+                ./motifs_${ftype}
+            find ./motifs_${ftype} \
+                    -type f -name "*.meme" -newer "${marker_s}" -print0 \
+                | while IFS= read -r -d '' meme_file; do
+                        mv "${meme_file}" "${meme_file%.meme}_${top_frac}.meme"
+                    done
+
+            rm -f "${marker_s}" "${marker_d}"
+        done
+done

@@ -1,0 +1,53 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=3-00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=128
+#SBATCH --mem=750M
+#SBATCH --exclusive
+#SBATCH --reservation=note_res
+#SBATCH --nodelist=f03-09
+#SBATCH --job-name=BENCHMARK_Predict_mLS-GKM_RPT_1
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
+#SBATCH --array=1,2,4,8,16,32,64,128%1
+
+# Environment
+conda activate mlsgkm
+
+RPT=1
+
+THREADS=${SLURM_ARRAY_TASK_ID:=1}
+
+OUT_DIR=Speed_EVAL/Predict_mLS-GKM/THREADS_${THREADS}/RPT_${RPT}
+mkdir -p "$OUT_DIR"
+
+FASTA=FASTAs/wgEncodeBroadHistoneH1hescCtcfStdAlnRep0/test_combined.fa
+MODEL=Models/mLS-GKM_Models/wgEncodeBroadHistoneH1hescCtcfStdAlnRep0.model.txt
+BIN=../../../bin/gkmpredict
+
+TMP_DIR=/tmp/${SLURM_JOB_NAME}_${SLURM_JOB_ID}_THREADS_${THREADS}_RPT_${RPT}
+mkdir -p "$TMP_DIR"
+
+LOCAL_FASTA=$TMP_DIR/$(basename "$FASTA")
+LOCAL_MODEL=$TMP_DIR/$(basename "$MODEL")
+LOCAL_BIN=$TMP_DIR/$(basename "$BIN")
+
+cp "$FASTA" "$LOCAL_FASTA"
+cp "$MODEL" "$LOCAL_MODEL"
+cp "$BIN" "$LOCAL_BIN"
+chmod +x "$LOCAL_BIN"
+
+"$LOCAL_BIN" \
+    -t ${THREADS} \
+    -D \
+    "$LOCAL_FASTA" \
+    "$LOCAL_MODEL" \
+    "$TMP_DIR/predictions.txt" &
+
+PID=$!
+psrecord $PID --interval 1 --plot "$TMP_DIR/resource_usage.png" --log "$TMP_DIR/resource_usage.csv" --log-format "csv"
+
+cp "$TMP_DIR/predictions.txt" "$OUT_DIR/predictions.txt"
+cp "$TMP_DIR/resource_usage.png" "$OUT_DIR/resource_usage.png"
+cp "$TMP_DIR/resource_usage.csv" "$OUT_DIR/resource_usage.csv"

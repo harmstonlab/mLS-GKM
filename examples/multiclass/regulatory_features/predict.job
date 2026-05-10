@@ -1,0 +1,27 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=1-00:00
+#SBATCH --ntasks=1
+#SBATCH --mem=2G
+#SBATCH --cpus-per-task=48
+#SBATCH --job-name=reg_features_predict
+#SBATCH --error=%x-%A_%a.log
+#SBATCH --output=%x-%A_%a.log
+#SBATCH --array=0-3
+
+# SLURM_ARRAY_TASK_ID=0
+
+SCRIPT=../../../bin/gkmpredict
+FASTA="./FASTAs/combined_test.fa"
+MODEL="./enhancer_vs_promoter_vs_CTCF.t3.model.txt"
+KMERS=./FASTAs/kmers_11.fa
+
+commands=(
+ "$SCRIPT -t $SLURM_CPUS_PER_TASK -D $FASTA $MODEL ./predictions_D/combined_test_scores.txt"
+ "$SCRIPT -t $SLURM_CPUS_PER_TASK -P $FASTA $MODEL ./predictions_P/combined_test_scores.txt"
+ "$SCRIPT -t $SLURM_CPUS_PER_TASK -D $KMERS $MODEL ./motifs_D/kmers_11_scores.txt"
+ "$SCRIPT -t $SLURM_CPUS_PER_TASK -P $KMERS $MODEL ./motifs_P/kmers_11_scores.txt"
+)
+
+echo "Running command: ${commands[$SLURM_ARRAY_TASK_ID]}"
+${commands[$SLURM_ARRAY_TASK_ID]}

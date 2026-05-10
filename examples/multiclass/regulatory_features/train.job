@@ -1,0 +1,31 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=3-00:00 
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=256G
+#SBATCH --job-name=reg_features_train
+#SBATCH --error=%x-%A_%a.log
+#SBATCH --output=%x-%A_%a.log
+#SBATCH --array=1-10%1
+
+OUTPUT=./enhancer_vs_promoter_vs_CTCF.t3.model.txt
+
+if [ -f "$OUTPUT" ]; then
+    echo "Output file $OUTPUT already exists. Skipping training."
+    scancel -t PD $SLURM_ARRAY_JOB_ID
+    exit 0
+fi
+
+../../../bin/gkmtrain \
+    -P \
+    -T 16 \
+    -m 248000 \
+    -t 3 -c 10 -g 2 \
+    -C ./enhancer_vs_promoter_vs_CTCF.t3 \
+    ./FASTAs/enhancer_train.fa \
+    ./FASTAs/promoter_train.fa \
+    ./FASTAs/CTCF_binding_site_train.fa \
+    ./enhancer_vs_promoter_vs_CTCF.t3
+
+scancel -t PD $SLURM_ARRAY_JOB_ID

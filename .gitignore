@@ -1,0 +1,8 @@
+.vs-code/
+.vscode/
+*.out
+*.err
+*.log
+*checkpoints*
+*.virtual_documents/
+*.meme

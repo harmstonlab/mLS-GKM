@@ -1,0 +1,5 @@
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+# This file exists so that the 'bin' directory exists in the git repository, so that `make install` can copy executables there.

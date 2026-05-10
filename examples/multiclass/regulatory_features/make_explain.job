@@ -1,0 +1,34 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=1-00:00
+#SBATCH --ntasks=1
+#SBATCH --mem=5G
+#SBATCH --cpus-per-task=150
+#SBATCH --job-name=reg_features_Make_Explain
+#SBATCH --error=%x-%A_%a.log
+#SBATCH --output=%x-%A_%a.log
+#SBATCH --array=0-9
+
+# SLURM_ARRAY_TASK_ID=0
+
+SCRIPT=../../../bin/gkmexplain 
+FASTA="./FASTAs/combined_test.fa"
+MODEL="./enhancer_vs_promoter_vs_CTCF.t3.model.txt"
+
+
+commands=(
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK $FASTA $MODEL ./gkmexplain/combined_test_explain_D.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK -m 1 $FASTA $MODEL ./gkmexplain/combined_test_explain_D_m1.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/enhancer.shuffled.fasta $MODEL ./gkmexplain/enhancer.shuffled.explain_D.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/promoter.shuffled.fasta $MODEL ./gkmexplain/promoter.shuffled.explain_D.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/CTCF_binding_site.shuffled.fasta $MODEL ./gkmexplain/CTCF_binding_site.shuffled.explain_D.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK $FASTA $MODEL ./gkmexplain/combined_test_explain_P.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK -m 1 $FASTA $MODEL ./gkmexplain/combined_test_explain_P_m1.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/enhancer.shuffled.fasta $MODEL ./gkmexplain/enhancer.shuffled.explain_P.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/promoter.shuffled.fasta $MODEL ./gkmexplain/promoter.shuffled.explain_P.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/CTCF_binding_site.shuffled.fasta $MODEL ./gkmexplain/CTCF_binding_site.shuffled.explain_P.txt"
+
+)
+
+echo "Running command: ${commands[$SLURM_ARRAY_TASK_ID]}"
+${commands[$SLURM_ARRAY_TASK_ID]}

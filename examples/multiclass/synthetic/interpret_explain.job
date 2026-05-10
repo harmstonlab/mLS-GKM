@@ -1,0 +1,87 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=0-04:00
+#SBATCH --ntasks=1
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=13
+#SBATCH --job-name=Synth_explain_interpret
+#SBATCH --error=%x-%A_%a.log
+#SBATCH --output=%x-%A_%a.log
+#SBATCH --array=0-11
+
+
+conda activate mlsgkm
+
+SCRIPT=../../../scripts/explain_script.py 
+FASTA="./FASTAs/combined_test.fa"
+EXPLAIN_D="./gkmexplain/combined_test_explain_D.txt"
+HYP_EXPLAIN_D="./gkmexplain/combined_test_explain_D_m1.txt"
+EXPLAIN_P="./gkmexplain/combined_test_explain_P.txt"
+HYP_EXPLAIN_P="./gkmexplain/combined_test_explain_P_m1.txt"
+
+OUTDIR_BASE=gkmexplain/BASE_PARAMS
+TF_MODISCO_ARGS="--tfmodisco-kmer-len 6 \
+--tfmodisco-num-gaps 1 \
+--tfmodisco-num-mismatches 0"
+
+commands=(
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_D} --hyp-explain ${HYP_EXPLAIN_D} \
+    --null-explain gkmexplain/A.shuffled.explain_D.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/AvsB_D --analyse-class-index 0 --analyse-pair-index 0 --threads 12 ${TF_MODISCO_ARGS}"
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_D} --hyp-explain ${HYP_EXPLAIN_D} \
+    --null-explain gkmexplain/A.shuffled.explain_D.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/AvsC_D --analyse-class-index 0 --analyse-pair-index 1 --threads 12 ${TF_MODISCO_ARGS}"
+
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_D} --hyp-explain ${HYP_EXPLAIN_D} \
+    --null-explain gkmexplain/B.shuffled.explain_D.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/BvsA_D --analyse-class-index 1 --analyse-pair-index 0 --threads 12 --pair-order reverse ${TF_MODISCO_ARGS}"
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_D} --hyp-explain ${HYP_EXPLAIN_D} \
+    --null-explain gkmexplain/B.shuffled.explain_D.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/BvsC_D --analyse-class-index 1 --analyse-pair-index 2 --threads 12 ${TF_MODISCO_ARGS}"
+
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_D} --hyp-explain ${HYP_EXPLAIN_D} \
+    --null-explain gkmexplain/C.shuffled.explain_D.txt --class-names A,B,C  \
+    --out-dir ${OUTDIR_BASE}/CvsA_D --analyse-class-index 2 --analyse-pair-index 1 --threads 12 --pair-order reverse ${TF_MODISCO_ARGS}"
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_D} --hyp-explain ${HYP_EXPLAIN_D} \
+    --null-explain gkmexplain/C.shuffled.explain_D.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/CvsB_D --analyse-class-index 2 --analyse-pair-index 2 --threads 12 --pair-order reverse ${TF_MODISCO_ARGS}"
+
+
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_P} --hyp-explain ${HYP_EXPLAIN_P} \
+    --null-explain gkmexplain/A.shuffled.explain_P.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/AvsB_P --analyse-class-index 0 --analyse-pair-index 0 --threads 12 ${TF_MODISCO_ARGS}"
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_P} --hyp-explain ${HYP_EXPLAIN_P} \
+    --null-explain gkmexplain/A.shuffled.explain_P.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/AvsC_P --analyse-class-index 0 --analyse-pair-index 1 --threads 12 ${TF_MODISCO_ARGS}"
+
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_P} --hyp-explain ${HYP_EXPLAIN_P} \
+    --null-explain gkmexplain/B.shuffled.explain_P.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/BvsA_P --analyse-class-index 1 --analyse-pair-index 0 --threads 12 --pair-order reverse ${TF_MODISCO_ARGS}"
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_P} --hyp-explain ${HYP_EXPLAIN_P} \
+    --null-explain gkmexplain/B.shuffled.explain_P.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/BvsC_P --analyse-class-index 1 --analyse-pair-index 2 --threads 12 ${TF_MODISCO_ARGS}"
+
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_P} --hyp-explain ${HYP_EXPLAIN_P} \
+    --null-explain gkmexplain/C.shuffled.explain_P.txt --class-names A,B,C  \
+    --out-dir ${OUTDIR_BASE}/CvsA_P --analyse-class-index 2 --analyse-pair-index 1 --threads 12 --pair-order reverse ${TF_MODISCO_ARGS}"
+"python ${SCRIPT} --fasta ${FASTA} \
+    --explain ${EXPLAIN_P} --hyp-explain ${HYP_EXPLAIN_P} \
+    --null-explain gkmexplain/C.shuffled.explain_P.txt --class-names A,B,C \
+    --out-dir ${OUTDIR_BASE}/CvsB_P --analyse-class-index 2 --analyse-pair-index 2 --threads 12 --pair-order reverse ${TF_MODISCO_ARGS}"
+
+)
+
+# SLURM_ARRAY_TASK_ID=0
+echo "Running command: ${commands[$SLURM_ARRAY_TASK_ID]}"
+${commands[$SLURM_ARRAY_TASK_ID]}

@@ -1,0 +1,31 @@
+#!/bin/sh
+#SBATCH --partition=epyc
+#SBATCH --time=3-00:00 
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=16G
+#SBATCH --job-name=Synth_train
+#SBATCH --error=%x-%A_%a.log
+#SBATCH --output=%x-%A_%a.log
+#SBATCH --array=1-10%1
+
+OUTPUT=./A_vs_B_vs_C.t3.model.txt
+
+if [ -f "$OUTPUT" ]; then
+    echo "Output file $OUTPUT already exists. Skipping training."
+    scancel -t PD $SLURM_ARRAY_JOB_ID
+    exit 0
+fi
+
+../../../bin/gkmtrain \
+    -P \
+    -T 16 \
+    -m 16000 \
+    -t 3 -c 10 -g 2 \
+    -C ./A_vs_B_vs_C.t3 \
+    ./FASTAs/A_train.fa \
+    ./FASTAs/B_train.fa \
+    ./FASTAs/C_train.fa \
+    ./A_vs_B_vs_C.t3
+
+scancel -t PD $SLURM_ARRAY_JOB_ID
