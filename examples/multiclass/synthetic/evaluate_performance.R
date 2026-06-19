@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 library(dplyr)
 library(readr)
 library(stringr)
@@ -9,7 +10,35 @@ library(tibble)
 library(scales)
 library(patchwork)
 
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# Set working directory to the script's directory.
+# If running inside RStudio, use the rstudioapi; otherwise infer from commandArgs.
+set_script_wd <- function() {
+    script_dir <- NULL
+    if (interactive() && requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+        path <- rstudioapi::getActiveDocumentContext()$path
+        if (nzchar(path)) {
+            script_dir <- dirname(path)
+        }
+    } else {
+        args <- commandArgs(trailingOnly = FALSE)
+        file_arg <- "--file="
+        matches <- grep(file_arg, args)
+        if (length(matches) > 0) {
+            path <- sub("^--file=", "", args[matches][1])
+            script_dir <- dirname(normalizePath(path))
+        } else {
+            # Fallback: use current working directory
+            script_dir <- getwd()
+        }
+    }
+    if (!is.null(script_dir) && dir.exists(script_dir)) {
+        setwd(script_dir)
+        invisible(script_dir)
+    } else {
+        invisible(NULL)
+    }
+}
+set_script_wd()
 
 # Derive class levels from the model file name (e.g. A_vs_B_vs_C.t3.model.txt)
 model_file <- list.files(".", pattern = "_vs_.*\\.model\\.txt$", full.names = FALSE)[1]

@@ -5,9 +5,11 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=16G
 #SBATCH --job-name=Synth_train
-#SBATCH --error=%x-%A_%a.log
-#SBATCH --output=%x-%A_%a.log
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
 #SBATCH --array=1-10%1
+
+SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}  # Default to 1 if not set
 
 OUTPUT=./A_vs_B_vs_C.t3.model.txt
 

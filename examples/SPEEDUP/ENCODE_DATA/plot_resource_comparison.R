@@ -1,6 +1,4 @@
 #!/usr/bin/env Rscript
-
-
 library(dplyr)
 library(ggplot2)
 library(readr)
@@ -9,6 +7,35 @@ library(purrr)
 library(tidyr)
 library(forcats)
 
+# Set working directory to the script's directory.
+# If running inside RStudio, use the rstudioapi; otherwise infer from commandArgs.
+set_script_wd <- function() {
+    script_dir <- NULL
+    if (interactive() && requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+        path <- rstudioapi::getActiveDocumentContext()$path
+        if (nzchar(path)) {
+            script_dir <- dirname(path)
+        }
+    } else {
+        args <- commandArgs(trailingOnly = FALSE)
+        file_arg <- "--file="
+        matches <- grep(file_arg, args)
+        if (length(matches) > 0) {
+            path <- sub("^--file=", "", args[matches][1])
+            script_dir <- dirname(normalizePath(path))
+        } else {
+            # Fallback: use current working directory
+            script_dir <- getwd()
+        }
+    }
+    if (!is.null(script_dir) && dir.exists(script_dir)) {
+        setwd(script_dir)
+        invisible(script_dir)
+    } else {
+        invisible(NULL)
+    }
+}
+set_script_wd()
 
 # Set these paths before running in an interactive R session.
 base_dir <- "./Speed_EVAL"

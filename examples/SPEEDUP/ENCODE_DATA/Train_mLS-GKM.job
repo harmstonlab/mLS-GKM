@@ -4,15 +4,17 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=6G
-#SBATCH --job-name=Train_LS-GKM
+#SBATCH --job-name=Train_mLS-GKM
 #SBATCH --error=%x-%A_%a.out
 #SBATCH --output=%x-%A_%a.out
 #SBATCH --array=1-333%75
 
+SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}  # Default to 1 if not set
+
 config_file=bigbed_list.tsv
 EXP_NAME=$(awk -v SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID '$1==SLURM_ARRAY_TASK_ID {print $3}' $config_file)
 
-mkdir -p Models/LS-GKM_Models
+mkdir -p Models/mLS-GKM_Models
 
 
 # All params other than kernel and cache memory size are default, just written here to be explicit
@@ -30,4 +32,4 @@ mkdir -p Models/LS-GKM_Models
     -T 4 \
     FASTAs/$EXP_NAME/train_positive.fa \
     FASTAs/$EXP_NAME/train_negative.fa \
-    Models/LS-GKM_Models/$EXP_NAME
+    Models/mLS-GKM_Models/$EXP_NAME

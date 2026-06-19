@@ -7,6 +7,7 @@ user-provided output directory:
 - ``positive.fa`` and ``negative.fa`` for all retained regions
 - ``train_positive.fa`` and ``train_negative.fa`` for training regions
 - ``test_positive.fa`` and ``test_negative.fa`` for test regions
+- ``test_combined.fa`` for all test regions
 
 Test regions are defined by chromosome (default: chr1 and chr2), and
 training excludes those chromosomes.
@@ -397,6 +398,7 @@ def main() -> None:
     write_fasta(output_root / "train_negative.fa", negatives_train)
     write_fasta(output_root / "test_positive.fa", positives_test)
     write_fasta(output_root / "test_negative.fa", negatives_test)
+    write_fasta(output_root / "test_combined.fa", positives_test + negatives_test)
 
     print(
         f"Processed {input_bb.name}: "

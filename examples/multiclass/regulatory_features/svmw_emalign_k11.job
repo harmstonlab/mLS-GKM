@@ -5,8 +5,8 @@
 #SBATCH --mem=3G
 #SBATCH --cpus-per-task=3
 #SBATCH --job-name=reg_features_svmw_emalign
-#SBATCH --error=%x-%J.log
-#SBATCH --output=%x-%J.log
+#SBATCH --error=%x-%J.out
+#SBATCH --output=%x-%J.out
 
 shopt -s nullglob
 

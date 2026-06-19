@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=256G
 #SBATCH --job-name=reg_features_train
-#SBATCH --error=%x-%A_%a.log
-#SBATCH --output=%x-%A_%a.log
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
 #SBATCH --array=1-10%1
 
 OUTPUT=./enhancer_vs_promoter_vs_CTCF.t3.model.txt

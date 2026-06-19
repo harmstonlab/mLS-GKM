@@ -2,19 +2,17 @@
 #SBATCH --partition=epyc
 #SBATCH --time=3-00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=128
+#SBATCH --cpus-per-task=1
 #SBATCH --mem=2G
-#SBATCH --exclusive
-#SBATCH --reservation=note_res
-#SBATCH --nodelist=f03-09
 #SBATCH --job-name=BENCHMARK_Explain_LS-GKM_RPT_1
 #SBATCH --error=%x-%J.out
 #SBATCH --output=%x-%J.out
 
 # Environment
-conda activate mlsgkm
+eval "$(conda shell.bash hook)"
+conda activate mLS-GKM
 
-RPT=1
+RPT=${RPT:-1}
 
 OUT_DIR=Speed_EVAL/Explain_LS-GKM/RPT_${RPT}
 mkdir -p "$OUT_DIR"
@@ -22,7 +20,7 @@ mkdir -p "$OUT_DIR"
 FASTA=FASTAs/wgEncodeBroadHistoneH1hescCtcfStdAlnRep0/test_combined.fa
 MODEL=Models/LS-GKM_Models/wgEncodeBroadHistoneH1hescCtcfStdAlnRep0.model.txt
 # SET WITH YOUR PATH TO THE ORIGINAL LS-GKM gkmexplain BINARY
-BIN=""
+BIN="/trinity/home/c24080990/scratch/ORIGINAL_lsgkm/bin/gkmexplain"
 
 TMP_DIR=/tmp/${SLURM_JOB_NAME}_${SLURM_JOB_ID}_RPT_${RPT}
 mkdir -p "$TMP_DIR"

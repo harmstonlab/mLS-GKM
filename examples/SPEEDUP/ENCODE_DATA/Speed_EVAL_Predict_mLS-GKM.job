@@ -2,22 +2,19 @@
 #SBATCH --partition=epyc
 #SBATCH --time=3-00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=128
+#SBATCH --cpus-per-task=1
 #SBATCH --mem=750M
-#SBATCH --exclusive
-#SBATCH --reservation=note_res
-#SBATCH --nodelist=f03-09
 #SBATCH --job-name=BENCHMARK_Predict_mLS-GKM_RPT_1
-#SBATCH --error=%x-%A_%a.out
-#SBATCH --output=%x-%A_%a.out
-#SBATCH --array=1,2,4,8,16,32,64,128%1
+#SBATCH --error=%x-%J.out
+#SBATCH --output=%x-%J.out
 
 # Environment
-conda activate mlsgkm
+eval "$(conda shell.bash hook)"
+conda activate mLS-GKM
 
-RPT=1
+RPT=${RPT:-1}
 
-THREADS=${SLURM_ARRAY_TASK_ID:=1}
+THREADS=${THREADS:?ERROR: THREADS must be set explicitly (e.g. THREADS=1); refusing to default}
 
 OUT_DIR=Speed_EVAL/Predict_mLS-GKM/THREADS_${THREADS}/RPT_${RPT}
 mkdir -p "$OUT_DIR"

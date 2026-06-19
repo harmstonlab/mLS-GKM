@@ -9,25 +9,19 @@
 #SBATCH --output=%x-%A_%a.out
 #SBATCH --array=1-333%75
 
+SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}  # Default to 1 if not set
+
+# SET WITH YOUR PATH TO THE ORIGINAL LS-GKM gkmpredict BINARY
+BIN="/trinity/home/c24080990/scratch/ORIGINAL_lsgkm/bin/gkmpredict"
+
 config_file=bigbed_list.tsv
 EXP_NAME=$(awk -v SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID '$1==SLURM_ARRAY_TASK_ID {print $3}' $config_file)
 
 mkdir -p Predictions/LS-GKM_Models/$EXP_NAME
 
-
-echo "Running Predictions for Positive Set"
-../../../bin/gkmpredict \
+echo "Running Predictions for Combined Set"
+${BIN} \
     -T 4 \
-    FASTAs/$EXP_NAME/test_positive.fa \
+    FASTAs/$EXP_NAME/test_combined.fa \
     Models/LS-GKM_Models/$EXP_NAME.model.txt \
-    Predictions/LS-GKM_Models/$EXP_NAME/positive_predictions.txt \
-
-echo "Running Predictions for Negative Set"
-../../../bin/gkmpredict \
-    -T 4 \
-    FASTAs/$EXP_NAME/test_negative.fa \
-    Models/LS-GKM_Models/$EXP_NAME.model.txt \
-    Predictions/LS-GKM_Models/$EXP_NAME/negative_predictions.txt \
-
-echo "Combining Predictions"
-cat Predictions/LS-GKM_Models/$EXP_NAME/positive_predictions.txt Predictions/LS-GKM_Models/$EXP_NAME/negative_predictions.txt > Predictions/LS-GKM_Models/$EXP_NAME/all_predictions.txt
+    Predictions/LS-GKM_Models/$EXP_NAME/all_predictions.txt

@@ -5,8 +5,8 @@
 #SBATCH --mem=1500M
 #SBATCH --cpus-per-task=3
 #SBATCH --job-name=Synth_svmw_emalign
-#SBATCH --error=%x-%J.log
-#SBATCH --output=%x-%J.log
+#SBATCH --error=%x-%J.out
+#SBATCH --output=%x-%J.out
 
 shopt -s nullglob
 
@@ -15,7 +15,7 @@ for top_frac in 1 5 10; do
             
         marker_s=$(mktemp)
         marker_d=$(mktemp)
-        ../../../scripts/svmw_emalign \
+        ../../../bin/svmw_emalign \
                 -t 3 \
                 --classes A,B,C \
                 --top_frac "${top_frac}" \

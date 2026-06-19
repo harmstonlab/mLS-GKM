@@ -21,9 +21,39 @@ library(scales)
 library(TFBSTools)
 library(universalmotif)
 
+# Set working directory to the script's directory.
+# If running inside RStudio, use the rstudioapi; otherwise infer from commandArgs.
+set_script_wd <- function() {
+  script_dir <- NULL
+  if (interactive() && requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+    path <- rstudioapi::getActiveDocumentContext()$path
+    if (nzchar(path)) {
+      script_dir <- dirname(path)
+    }
+  } else {
+    args <- commandArgs(trailingOnly = FALSE)
+    file_arg <- "--file="
+    matches <- grep(file_arg, args)
+    if (length(matches) > 0) {
+      path <- sub("^--file=", "", args[matches][1])
+      script_dir <- dirname(normalizePath(path))
+    } else {
+      # Fallback: use current working directory
+      script_dir <- getwd()
+    }
+  }
+  if (!is.null(script_dir) && dir.exists(script_dir)) {
+    setwd(script_dir)
+    invisible(script_dir)
+  } else {
+    invisible(NULL)
+  }
+}
+set_script_wd()
+
 #### 1. File Paths ####
-PATH_ROC_AUC    <- "./SPEEDUP/ENCODE_Data/Predictions/metrics_summary/summary_roc_auc.csv"
-PATH_SPEED      <- "./SPEEDUP/ENCODE_Data/Speed_EVAL/plots/run_level_summary.csv"
+PATH_ROC_AUC    <- "./SPEEDUP/ENCODE_DATA/Predictions/metrics_summary/summary_roc_auc.csv"
+PATH_SPEED      <- "./SPEEDUP/ENCODE_DATA/Speed_EVAL/plots/run_level_summary.csv"
 PATH_MULTICLASS <- "./multiclass/regulatory_features/predictions_P/combined_test_scores.txt"
 PATH_MEME       <- "./multiclass/regulatory_features/gkmexplain/BASE_PARAMS/enhancer_vs_promoter_D/enhancer_vs_promoter_D_patterns.meme"
 

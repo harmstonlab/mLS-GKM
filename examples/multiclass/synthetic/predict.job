@@ -5,15 +5,15 @@
 #SBATCH --mem=2G
 #SBATCH --cpus-per-task=48
 #SBATCH --job-name=Synth_predict
-#SBATCH --error=%x-%A_%a.log
-#SBATCH --output=%x-%A_%a.log
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
 #SBATCH --array=0-3
 
-# SLURM_ARRAY_TASK_ID=0
+SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}  # Default to 1 if not set
 
 SCRIPT=../../../bin/gkmpredict
 FASTA="./FASTAs/combined_test.fa"
-MODEL=".A_vs_B_vs_C.t3.model.txt"
+MODEL="./A_vs_B_vs_C.t3.model.txt"
 KMERS=./FASTAs/kmers_11.fa
 
 commands=(
@@ -23,5 +23,13 @@ commands=(
  "$SCRIPT -t $SLURM_CPUS_PER_TASK -P $KMERS $MODEL ./motifs_P/kmers_11_scores.txt"
 )
 
+make_dir_commands=(
+ "mkdir -p ./predictions_D"
+ "mkdir -p ./predictions_P"
+ "mkdir -p ./motifs_D"
+ "mkdir -p ./motifs_P"
+)
+
 echo "Running command: ${commands[$SLURM_ARRAY_TASK_ID]}"
+${make_dir_commands[$SLURM_ARRAY_TASK_ID]}
 ${commands[$SLURM_ARRAY_TASK_ID]}

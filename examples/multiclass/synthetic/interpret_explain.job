@@ -5,12 +5,15 @@
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=13
 #SBATCH --job-name=Synth_explain_interpret
-#SBATCH --error=%x-%A_%a.log
-#SBATCH --output=%x-%A_%a.log
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
 #SBATCH --array=0-11
 
+SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}  # Default to 1 if not set
 
-conda activate mlsgkm
+# Environment
+eval "$(conda shell.bash hook)"
+conda activate mLS-GKM
 
 SCRIPT=../../../scripts/explain_script.py 
 FASTA="./FASTAs/combined_test.fa"
@@ -82,6 +85,5 @@ commands=(
 
 )
 
-# SLURM_ARRAY_TASK_ID=0
 echo "Running command: ${commands[$SLURM_ARRAY_TASK_ID]}"
 ${commands[$SLURM_ARRAY_TASK_ID]}

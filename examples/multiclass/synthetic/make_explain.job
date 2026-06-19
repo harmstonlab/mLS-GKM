@@ -2,33 +2,35 @@
 #SBATCH --partition=epyc
 #SBATCH --time=0-04:00
 #SBATCH --ntasks=1
-#SBATCH --mem=2G
+#SBATCH --mem=1G
 #SBATCH --cpus-per-task=48
 #SBATCH --job-name=Synth_make_explain
-#SBATCH --error=%x-%A_%a.log
-#SBATCH --output=%x-%A_%a.log
+#SBATCH --error=%x-%A_%a.out
+#SBATCH --output=%x-%A_%a.out
 #SBATCH --array=0-9
 
-# SLURM_ARRAY_TASK_ID=0
+SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}  # Default to 1 if not set
 
 SCRIPT=../../../bin/gkmexplain 
-FASTA="./FASTAs/combined_test.fa"
+COMBINED_FASTA="./FASTAs/combined_test.fa"
+A_SHUFFLED_FASTA="./FASTAs/A.shuffled.fasta"
+B_SHUFFLED_FASTA="./FASTAs/B.shuffled.fasta"
+C_SHUFFLED_FASTA="./FASTAs/C.shuffled.fasta"
 MODEL="A_vs_B_vs_C.t3.model.txt"
 
-
 commands=(
- "$SCRIPT -D -t $SLURM_CPUS_PER_TASK $FASTA $MODEL ./gkmexplain/combined_test_explain_D.txt"
- "$SCRIPT -D -t $SLURM_CPUS_PER_TASK -m 1 $FASTA $MODEL ./gkmexplain/combined_test_explain_D_m1.txt"
- "$SCRIPT -D -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/A.shuffled.fasta $MODEL ./gkmexplain/A.shuffled.explain_D.txt"
- "$SCRIPT -D -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/B.shuffled.fasta $MODEL ./gkmexplain/B.shuffled.explain_D.txt"
- "$SCRIPT -D -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/C.shuffled.fasta $MODEL ./gkmexplain/C.shuffled.explain_D.txt"
- "$SCRIPT -P -t $SLURM_CPUS_PER_TASK $FASTA $MODEL ./gkmexplain/combined_test_explain_P.txt"
- "$SCRIPT -P -t $SLURM_CPUS_PER_TASK -m 1 $FASTA $MODEL ./gkmexplain/combined_test_explain_P_m1.txt"
- "$SCRIPT -P -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/A.shuffled.fasta $MODEL ./gkmexplain/A.shuffled.explain_P.txt"
- "$SCRIPT -P -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/B.shuffled.fasta $MODEL ./gkmexplain/B.shuffled.explain_P.txt"
- "$SCRIPT -P -t $SLURM_CPUS_PER_TASK ./shuffled_seqs/C.shuffled.fasta $MODEL ./gkmexplain/C.shuffled.explain_P.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK $COMBINED_FASTA $MODEL ./gkmexplain/combined_test_explain_D.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK -m 1 $COMBINED_FASTA $MODEL ./gkmexplain/combined_test_explain_D_m1.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK $A_SHUFFLED_FASTA $MODEL ./gkmexplain/A.shuffled.explain_D.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK $B_SHUFFLED_FASTA $MODEL ./gkmexplain/B.shuffled.explain_D.txt"
+ "$SCRIPT -D -t $SLURM_CPUS_PER_TASK $C_SHUFFLED_FASTA $MODEL ./gkmexplain/C.shuffled.explain_D.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK $COMBINED_FASTA $MODEL ./gkmexplain/combined_test_explain_P.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK -m 1 $COMBINED_FASTA $MODEL ./gkmexplain/combined_test_explain_P_m1.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK $A_SHUFFLED_FASTA $MODEL ./gkmexplain/A.shuffled.explain_P.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK $B_SHUFFLED_FASTA $MODEL ./gkmexplain/B.shuffled.explain_P.txt"
+ "$SCRIPT -P -t $SLURM_CPUS_PER_TASK $C_SHUFFLED_FASTA $MODEL ./gkmexplain/C.shuffled.explain_P.txt"
 
 )
-
+mkdir -p ./gkmexplain
 echo "Running command: ${commands[$SLURM_ARRAY_TASK_ID]}"
 ${commands[$SLURM_ARRAY_TASK_ID]}

@@ -5,17 +5,18 @@ This directory contains the scripts and configuration needed to reproduce the be
 ## Prerequisites
 
 - A built and installed `mLS-GKM` (`gkmtrain`, `gkmpredict`,
-  `gkmexplain` on `PATH`, or in `../bin/`).
-- The original [LS-GKM](https://github.com/Dongwon-Lee/lsgkm) build, for the head-to-head equivalence and speed comparisons. 
+  `gkmexplain` in `../bin/`).
+- The original [LS-GKM + gkmexplain](https://github.com/kundajelab/lsgkm) build, for the head-to-head equivalence and speed comparisons. 
 - SLURM (for the job scripts).
     - Alternatively these scripts can be adapted to run on other schedulers or locally; the SLURM job scripts are provided as-is and may require adjustments to fit your cluster configuration (e.g. partition names, memory limits, job array syntax). 
+    - If using SLURM the `job` files will need to be edited to set up the correct partition name for your cluster. Alternatively, the `sbatch` commands can be run directly on the command line with the appropriate arguments for your cluster, e.g. `sbatch --partition=your_partition_name <JOB_FILE>`.
  
 
-A reference Conda environment is provided as `environment.yml` in the scripts directory (**THIS IS PENDING**). To create and activate:
+A reference Conda environment is provided as `environment.yml` in the scripts directory. To create and activate:
 
 ```sh
 conda env create -f ../scripts/environment.yml
-conda activate mlsgkm
+conda activate mLS-GKM
 ```
 
 ## Reference genomes
@@ -24,7 +25,7 @@ The analyses use:
 
 - `hg19` human reference ([UCSC](https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz)).
     - Used for generating the FASTA records from the ENCODE bigBed files, as well as the repeat/GC matched negatives
-- `GRCh38 regulatory features` from Ensembl Regulatory Build release v115 ([Ensembl FTP](https://ftp.ensembl.org/pub/current_regulation/homo_sapiens/GRCh38/annotation/)), specifically `Homo_sapiens.GRCh38.regulatory_features.v115.gff3.gz`
+- `GRCh38 regulatory features` from Ensembl Regulatory Build release v115 ([Ensembl FTP](https://ftp.ensembl.org/pub/release-115/regulation/homo_sapiens/GRCh38/annotation/)), specifically `Homo_sapiens.GRCh38.regulatory_features.v115.gff3.gz`
 
 ## Directory layout
 ```
@@ -75,7 +76,16 @@ examples/
 
 This reproduces the 322-dataset equivalence comparison and the threading/memory benchmarks on `H1hescCtcf`.
 
-### 1a. Download and process the ENCODE peak files
+### 1a. Download and prepare the reference genome
+Download the `hg19` reference genome from UCSC:
+
+```sh
+cd SPEEDUP/ENCODE_DATA
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
+gunzip hg19.fa.gz
+```
+
+### 1b. Download and process the ENCODE peak files
 
 The original LS-GKM paper used 322 ENCODE ChIP-seq peak files with at least 5,000 peaks. We use the same source:
 
@@ -86,11 +96,10 @@ https://ftp.ebi.ac.uk/pub/databases/ensembl/encode/integration_data_jan2011/byDa
 To download and filter:
 
 ```sh
-cd SPEEDUP/ENCODE_DATA
 rsync -Lav rsync://ftp.ebi.ac.uk/pub/databases/ensembl/encode/integration_data_jan2011/byDataType/peaks/jan2011/spp/optimal/hub/ ./bigbed/
 python filter_bigbed.py
 ```
-This yields `filtered/dataset_summary.tsv` listing the 322 retained datasets.
+This yields `dataset_summary.tsv` listing the 322 retained datasets.
 
 To convert each bigBed to a positives FASTA + matched negatives FASTA (GC-content and repeat-fraction matched, regions > 1 kb removed for direct comparability with Lee 2016):
 
@@ -101,7 +110,7 @@ sbatch Process_ENCODE_bigbed.job
 The output is one positives and one matched-negatives FASTA per dataset under `FASTAs/<DATASET_NAME>`. Chromosomes 1 and 2 are held out as the test set; all other chromosomes are used for training.
 
 
-### 1b. Train with original LS-GKM and with mLS-GKM
+### 1c. Train with original LS-GKM and with mLS-GKM
 
 ```sh
 sbatch Train_LS-GKM.job
@@ -116,7 +125,7 @@ Both job scripts use the gkmrbf kernel (`-t 3`) with the LS-GKM-recommended hype
 
 producing one model per dataset under `Models/LS-GKM` and `Models/mLS-GKM` respectively.
 
-### 1c. Predict on the test set and evaluate metrics
+### 1d. Predict on the test set and evaluate metrics
 
 ```sh
 sbatch Predict_LS-GKM.job
@@ -145,26 +154,33 @@ pROC
 ggplot2
 ```
 
-### 1d. Speed and memory benchmarks (Fig. 1B, C, D)
+### 1e. Speed and memory benchmarks (Fig. 1B, C, D)
 
 It is best to run these benchmarks in a controlled environment with minimal background load. We used a computed node with 2x AMD EPYC 7543 and a job reservation to ensure exclusive access. 
 
-Each script includes at the top a `RPT=1` variable. This should be increased after each submission up to the desired number of repeats (e.g. `RPT=5` for 5 repeats) to get a more robust estimate of the median and interquartile range. The outputs will be subdivided into `SPEED_EVAL/Predict_LS-GKM/THREADS_<N>/RPT_<M>/` etc...
+Use the `run_benchmarks.sh` wrapper to submit all four scripts the desired number of times. Multiple repeats give a more robust estimate of the median and interquartile range. The outputs are subdivided into `SPEED_EVAL/Predict_LS-GKM/THREADS_<N>/RPT_<M>/` etc...
 
 ```sh
-sbatch Speed_EVAL_Predict_LS-GKM.job
-sbatch Speed_EVAL_Predict_mLS-GKM.job
-sbatch Speed_EVAL_Explain_LS-GKM.job
-sbatch Speed_EVAL_Explain_mLS-GKM.job
+# from examples/SPEEDUP/ENCODE_DATA/
+./run_benchmarks.sh -n 5                 # 5 repeats, exclusive nodes (publication runs)
+./run_benchmarks.sh -n 1 --no-exclusive  # quick test runs; share nodes to run many at once
+```
 
-# To increase repeats, edit the `RPT` variable at the top of each script and re-submit.
+The wrapper loops `RPT` from 1 to `-n` and submits every script for each repeat. For the multithreaded scripts it submits one job per thread count, with `--cpus-per-task` set equal to that thread count. The thread sweeps (which used to be SLURM `--array` lists) are defined near the top of `run_benchmarks.sh`.
+
+`--exclusive` is the default and reserves whole nodes, which is best for optaining reliable benchmarking results. Pass `--no-exclusive` while testing will mean that each job only reserves as many CPUs as it uses, so many low-thread jobs can share a node and run concurrently (timings in this mode are not publication-representative). Defaults for `-n` and exclusivity can also be edited at the top of the wrapper.
+
+For the most consistent timings, pin every job to the same machine and/or a dedicated reservation via the `EXTRA_ARGS` variable near the top of `run_benchmarks.sh` (empty by default). It is passed to every `sbatch` call, e.g.:
+
+```sh
+EXTRA_ARGS="--nodelist=node01 --reservation=my_benchmark_res"
 ```
 
 - The Predict and Explain jobs for mLS-GKM use 1,2,4,8,16,32,64,128 threads used for per sequence parallelism
 - The Predict job for LS-GKM uses 1,4,16 threads, used for kernel computations
-The Explain job for LS-GKM uses 1 thread only, as the original implementation does not support multi-threading.
+- The Explain job for LS-GKM uses 1 thread only, as the original implementation does not support multi-threading.
 
-In all cases wall-clock time and peak resident memory are recordedvia `psrecord`. Creating a `resource_usage.png` plot for each run, as well as a `resource_usage.csv` that will be used for the final summary plots.
+In all cases wall-clock time and peak resident memory are recorded via `psrecord`. Creating a `resource_usage.png` plot for each run, as well as a `resource_usage.csv` that will be used for the final summary plots.
 
 To plot:
 
@@ -195,7 +211,7 @@ Download and process the Ensembl Regulatory Build GFF3 file to produce FASTA fil
 
 ```sh
 cd multiclass/regulatory_features
-wget https://ftp.ensembl.org/pub/current_regulation/homo_sapiens/GRCh38/annotation/Homo_sapiens.GRCh38.regulatory_features.v115.gff3.gz
+wget https://ftp.ensembl.org/pub/release-115/regulation/homo_sapiens/GRCh38/annotation/Homo_sapiens.GRCh38.regulatory_features.v115.gff3.gz
 gunzip Homo_sapiens.GRCh38.regulatory_features.v115.gff3.gz
 Rscript make_FASTAs.R
 ```
@@ -209,6 +225,8 @@ For each class (enhancer, promoter, CTCF_binding_site) the produces:
 Aditionally there is a `combined_test.fa` which is a concatenation of all `_test.fa` files
 
 ### 2b. Train the 3-class probability-calibrated model
+
+NOTE - this job will take a significant amount of time to complete, as such a pre-trained model is provided at `multiclass/regulatory_features/enhancer_vs_promoter_vs_CTCF.t3.model.txt`, and so the training step can be skipped if desired.
 
 ```sh
 sbatch train.job
@@ -231,7 +249,13 @@ The job runs:
 
 The job submits 10 copies of itself, with an array limit of 1 to ensure that only one runs at a time. This is so that is a job gets killed/times out it will automatically resume from the last completed checkpoint. After training has successfully completed all pending jobs are cancelled.
 
-### 2c. Score the test set and produce Fig. 1E
+### 2c. Generate non-redundant 11mers
+
+```sb
+python ../../../scripts/nrkmers.py 11 FASTAs/kmers_11.fa
+```
+
+### 2d. Score the test set + kmers and produce Fig. 1E
 
 ```sh
 sbatch predict.job
@@ -270,12 +294,13 @@ The TF-MoDISco workflow requires dinucleotide-preserved shuffled background sequ
 
 ```sh
 cd multiclass/regulatory_features
+conda activate mLS-GKM
 python ../../../scripts/make_dnshuff_fasta.py \
     --in-fasta FASTAs/combined_test.fa \
     --out-dir FASTAs/ \
     --classes enhancer,promoter,CTCF_binding_site
 ```
-### 3b. Run gkmexplain
+### 3c. Run gkmexplain
 
 ```sh
 sbatch make_explain.job
@@ -295,6 +320,31 @@ sbatch interpret_explain.job
 
 The FOS::JUN motif will be in `multiclass/regulatory_features/gkmexplain/BASE_PARAMS/enhancer_vs_promoter_D/patterns/enhancer_0.png`
 
+### 3c. Recover motifs with svmw_emalign
+
+```sh
+sbatch svmw_emalign_k11.job
+```
+
+This takes the top 1%, 5% and 10% of kmers by importance score for each class, and aligns the kmers with an expectation-maximization algorithm to produce a MEME file. The resulting meme files can then be plotted with the `plot_meme.R` script:
+
+```sh
+Rscript plot_meme.R
+```
+
+Alternatively the R Script can be run interactively in RStudio. The required packages are:
+
+```R
+TFBSTools
+universalmotif
+glue
+ggbio
+ggpattern
+ggplot2
+GenomicRanges
+regioneR
+```
+
 
 ## 4. Synthetic motif-recovery benchmark (Supplementary Fig. S1)
 
@@ -304,6 +354,7 @@ A controlled benchmark with three implanted motifs.
 
 ```sh
 cd multiclass/synthetic
+conda activate mLS-GKM
 python create_synth.py
 ```
 
@@ -324,7 +375,7 @@ Resulting in:
 
 ### 4b. Generate non-redundant 11mers
 
-```sb
+```sh
 python ../../../scripts/nrkmers.py 11 FASTAs/kmers_11.fa
 ```
 
@@ -373,7 +424,7 @@ First the shuffled background FASTA files need to be generated:
 
 ```sh
 python ../../../scripts/make_dnshuff_fasta.py \
-    --in-fasta combined_test.fa \
+    --in-fasta FASTAs/combined_test.fa \
     --out-dir FASTAs/ \
     --classes A,B,C
 ```

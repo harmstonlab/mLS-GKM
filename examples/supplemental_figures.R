@@ -10,11 +10,41 @@ library(readr)
 library(patchwork)
 library(universalmotif)
 
+# Set working directory to the script's directory.
+# If running inside RStudio, use the rstudioapi; otherwise infer from commandArgs.
+set_script_wd <- function() {
+  script_dir <- NULL
+  if (interactive() && requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+    path <- rstudioapi::getActiveDocumentContext()$path
+    if (nzchar(path)) {
+      script_dir <- dirname(path)
+    }
+  } else {
+    args <- commandArgs(trailingOnly = FALSE)
+    file_arg <- "--file="
+    matches <- grep(file_arg, args)
+    if (length(matches) > 0) {
+      path <- sub("^--file=", "", args[matches][1])
+      script_dir <- dirname(normalizePath(path))
+    } else {
+      # Fallback: use current working directory
+      script_dir <- getwd()
+    }
+  }
+  if (!is.null(script_dir) && dir.exists(script_dir)) {
+    setwd(script_dir)
+    invisible(script_dir)
+  } else {
+    invisible(NULL)
+  }
+}
+set_script_wd()
+
 #### 1. File Paths ####
-PATH_SPEED  <- "./SPEEDUP/ENCODE_Data/Speed_EVAL/plots/run_level_summary.csv"
-PATH_MEME_A <- "./multiclass/Synthetic_test/gkmexplain/BASE_PARAMS/AvsB_P/AvsB_P_patterns.meme"
-PATH_MEME_B <- "./multiclass/Synthetic_test/gkmexplain/BASE_PARAMS/BvsC_D/BvsC_D_patterns.meme"
-PATH_MEME_C <- "./multiclass/Synthetic_test/gkmexplain/BASE_PARAMS/CvsB_D/CvsB_D_patterns.meme"
+PATH_SPEED  <- "./SPEEDUP/ENCODE_DATA/Speed_EVAL/plots/run_level_summary.csv"
+PATH_MEME_A <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/AvsB_P/AvsB_P_patterns.meme"
+PATH_MEME_B <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/BvsC_D/BvsC_D_patterns.meme"
+PATH_MEME_C <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/CvsB_D/CvsB_D_patterns.meme"
 OUT_DIR     <- "."
 OUT_DPI     <- 600
 
