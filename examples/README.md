@@ -74,7 +74,7 @@ examples/
 
 ## 1. ENCODE ChIP-seq benchmark (Fig. 1A, B, C, D)
 
-This reproduces the 322-dataset equivalence comparison and the threading/memory benchmarks on `H1hescCtcf`.
+This reproduces the 333-dataset equivalence comparison and the threading/memory benchmarks on `H1hescCtcf`.
 
 ### 1a. Download and prepare the reference genome
 Download the `hg19` reference genome from UCSC:
@@ -87,7 +87,7 @@ gunzip hg19.fa.gz
 
 ### 1b. Download and process the ENCODE peak files
 
-The original LS-GKM paper used 322 ENCODE ChIP-seq peak files with at least 5,000 peaks. We use the same source:
+The original LS-GKM paper used ENCODE ChIP-seq peak files with at least 5,000 peaks. We use the same source:
 
 ```
 https://ftp.ebi.ac.uk/pub/databases/ensembl/encode/integration_data_jan2011/byDataType/peaks/jan2011/spp/optimal/hub/
@@ -99,7 +99,7 @@ To download and filter:
 rsync -Lav rsync://ftp.ebi.ac.uk/pub/databases/ensembl/encode/integration_data_jan2011/byDataType/peaks/jan2011/spp/optimal/hub/ ./bigbed/
 python filter_bigbed.py
 ```
-This yields `dataset_summary.tsv` listing the 322 retained datasets.
+This yields `bigbed_counts.tsv` listing the 333 retained datasets.
 
 To convert each bigBed to a positives FASTA + matched negatives FASTA (GC-content and repeat-fraction matched, regions > 1 kb removed for direct comparability with Lee 2016):
 
