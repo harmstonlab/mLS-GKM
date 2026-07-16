@@ -45,6 +45,7 @@ PATH_SPEED  <- "./SPEEDUP/ENCODE_DATA/Speed_EVAL/plots/run_level_summary.csv"
 PATH_MEME_A <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/AvsB_P/AvsB_P_patterns.meme"
 PATH_MEME_B <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/BvsC_D/BvsC_D_patterns.meme"
 PATH_MEME_C <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/CvsB_D/CvsB_D_patterns.meme"
+PATH_MEME_CTCF <- "./multiclass/regulatory_features/motifs_P/CTCF_binding_site_pos_1.meme"
 OUT_DIR     <- "."
 OUT_DPI     <- 600
 
@@ -127,6 +128,8 @@ motifs_A <- read_meme(PATH_MEME_A)
 motifs_B <- read_meme(PATH_MEME_B)
 motifs_C <- read_meme(PATH_MEME_C)
 
+CTCF_motif <- read_meme(PATH_MEME_CTCF)[[1]]
+
 all_motifs <- c(motifs_A[[1]], motifs_B[[1]], motifs_C[[1]])
 all_motifs[[1]]["name"] <- "A_0"
 all_motifs[[2]]["name"] <- "B_0"
@@ -152,3 +155,26 @@ ggsave(file.path(OUT_DIR, "sfig_synthetic_motifs.pdf"), sfig2,
 ggsave(file.path(OUT_DIR, "sfig_synthetic_motifs.png"), sfig2,
        width = 7, height = 9, dpi = OUT_DPI, device = "png")
 message("Saved: sfig_synthetic_motifs.pdf / .png")
+
+#### S3 — CTCF Motif ####
+CTCF_motif["name"] <- "CTCF"
+
+sfig3 <- view_motifs(
+    CTCF_motif,
+    use.type            = "ICM",
+    show.positions.once = TRUE,
+    show.names          = TRUE,
+    tryRC               = FALSE,
+    relative_entropy    = TRUE,
+    colour.scheme       = logo_colours
+  ) +
+  labs(title = "CTCF Binding Site Motif",
+       x = "Position", y = "IC (bits)") +
+  THEME_BASE +
+  theme(legend.position = "none")
+
+ggsave(file.path(OUT_DIR, "sfig_ctcf_motif.pdf"), sfig3,
+       width = 7, height = 3, device = "pdf")
+ggsave(file.path(OUT_DIR, "sfig_ctcf_motif.png"), sfig3,
+       width = 7, height = 3, dpi = OUT_DPI, device = "png")
+message("Saved: sfig_ctcf_motif.pdf / .png")
