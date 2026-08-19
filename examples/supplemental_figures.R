@@ -1,6 +1,9 @@
 #### Supplemental Figures ####
-# S1 – gkmpredict: Peak Memory (RSS)
-# S2 – Synthetic test motifs: A_0, B_0, C_0
+# S1 – CTCF binding site motif
+# S2 – DCE motif
+# S3 – CCAT motif 
+# S4 – Synthetic test motifs: A_0, B_0, C_0
+# S5 – gkmpredict: Peak Memory (RSS)
 #
 # Requires: ggplot2, dplyr, readr, patchwork, universalmotif
 
@@ -46,6 +49,7 @@ PATH_MEME_A <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/AvsB_P/AvsB_P_patt
 PATH_MEME_B <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/BvsC_D/BvsC_D_patterns.meme"
 PATH_MEME_C <- "./multiclass/synthetic/gkmexplain/BASE_PARAMS/CvsB_D/CvsB_D_patterns.meme"
 PATH_MEME_CTCF <- "./multiclass/regulatory_features/motifs_P/CTCF_binding_site_pos_1.meme"
+PATH_MEME_PROM_ENH <- "./multiclass/regulatory_features/gkmexplain/BASE_PARAMS/promoter_vs_enhancer_P/promoter_vs_enhancer_P_patterns.meme"
 OUT_DIR     <- "."
 OUT_DPI     <- 600
 
@@ -54,6 +58,8 @@ COL_OLD <- "#4477AA"
 COL_NEW <- "#EE6677"
 COL_VERSION <- c("LS-GKM" = COL_OLD, "mLS-GKM" = COL_NEW)
 COL_DNA <- c(A = "#2CA02C", C = "#1F77B4", G = "#DDAA33", `T` = "#BB5566")
+logo_colours <- c(A = COL_DNA[["A"]], C = COL_DNA[["C"]],
+                  G = COL_DNA[["G"]], `T` = COL_DNA[["T"]])
 
 LABEL_OLD <- "LS-GKM"
 LABEL_NEW <- "mLS-GKM"
@@ -70,7 +76,112 @@ THEME_BASE <- theme_classic(base_size = 10) +
     panel.background = element_rect(fill = "white", colour = NA)
   )
 
-#### S1 — gkmpredict: Peak Memory (RSS) ####
+#### S1 — CTCF Motif ####
+CTCF_motif <- read_meme(PATH_MEME_CTCF)[[1]]
+CTCF_motif["name"] <- "CTCF"
+
+sfig1 <- view_motifs(
+    CTCF_motif,
+    use.type            = "ICM",
+    show.positions.once = TRUE,
+    show.names          = TRUE,
+    tryRC               = FALSE,
+    relative_entropy    = TRUE,
+    colour.scheme       = logo_colours
+  ) +
+  labs(title = "CTCF Binding Site Motif",
+       x = "Position", y = "IC (bits)") +
+  THEME_BASE +
+  theme(legend.position = "none")
+
+ggsave(file.path(OUT_DIR, "sfig_ctcf_motif.pdf"), sfig1,
+       width = 7, height = 3, device = "pdf")
+ggsave(file.path(OUT_DIR, "sfig_ctcf_motif.png"), sfig1,
+       width = 7, height = 3, dpi = OUT_DPI, device = "png")
+message("Saved: sfig_ctcf_motif.pdf / .png")
+
+#### S2 — DCE Motif (promoter_vs_enhancer pattern_2) ####
+prom_enh_motifs <- read_meme(PATH_MEME_PROM_ENH)
+
+DCE_motif <- prom_enh_motifs[[3]]   # pattern_2
+DCE_motif["name"] <- "DCE"
+
+sfig2 <- view_motifs(
+    trim_motifs(DCE_motif,min.ic = 0.15),
+    use.type            = "ICM",
+    show.positions.once = TRUE,
+    show.names          = TRUE,
+    tryRC               = FALSE,
+    relative_entropy    = TRUE,
+    colour.scheme       = logo_colours
+  ) +
+  labs(title = "DCE Motif",
+       x = "Position", y = "IC (bits)") +
+  THEME_BASE +
+  theme(legend.position = "none")
+
+ggsave(file.path(OUT_DIR, "sfig_dce_motif.pdf"), sfig2,
+       width = 7, height = 3, device = "pdf")
+ggsave(file.path(OUT_DIR, "sfig_dce_motif.png"), sfig2,
+       width = 7, height = 3, dpi = OUT_DPI, device = "png")
+message("Saved: sfig_dce_motif.pdf / .png")
+
+#### S3 — CCAT Motif (promoter_vs_enhancer pattern_3) ####
+CCAT_motif <- prom_enh_motifs[[4]]   # pattern_3
+CCAT_motif["name"] <- "CCAT"
+
+sfig3 <- view_motifs(
+  trim_motifs(CCAT_motif, min.ic = 0.3),
+    use.type            = "ICM",
+    show.positions.once = TRUE,
+    show.names          = TRUE,
+    tryRC               = FALSE,
+    relative_entropy    = TRUE,
+    colour.scheme       = logo_colours
+  ) +
+  labs(title = "CCAT Motif",
+       x = "Position", y = "IC (bits)") +
+  THEME_BASE +
+  theme(legend.position = "none")
+
+ggsave(file.path(OUT_DIR, "sfig_ccat_motif.pdf"), sfig3,
+       width = 7, height = 3, device = "pdf")
+ggsave(file.path(OUT_DIR, "sfig_ccat_motif.png"), sfig3,
+       width = 7, height = 3, dpi = OUT_DPI, device = "png")
+message("Saved: sfig_ccat_motif.pdf / .png")
+
+#### S4 — Synthetic Test Motifs ####
+motifs_A <- read_meme(PATH_MEME_A)
+motifs_B <- read_meme(PATH_MEME_B)
+motifs_C <- read_meme(PATH_MEME_C)
+
+all_motifs <- c(motifs_A[[1]], motifs_B[[1]], motifs_C[[1]])
+all_motifs[[1]]["name"] <- "A_0"
+all_motifs[[2]]["name"] <- "B_0"
+all_motifs[[3]]["name"] <- "C_0"
+
+sfig4 <- view_motifs(
+    trim_motifs(all_motifs, min.ic = 0.1),
+    use.type            = "ICM",
+    show.positions.once = TRUE,
+    show.names          = TRUE,
+    tryRC               = FALSE,
+    relative_entropy    = TRUE,
+    min.overlap         = 50,
+    colour.scheme       = logo_colours
+  ) +
+  labs(title = "Recovered Synthetic Motifs",
+       x = "Position", y = "IC (bits)") +
+  THEME_BASE +
+  theme(legend.position = "none")
+
+ggsave(file.path(OUT_DIR, "sfig_synthetic_motifs.pdf"), sfig4,
+       width = 7, height = 9, device = "pdf")
+ggsave(file.path(OUT_DIR, "sfig_synthetic_motifs.png"), sfig4,
+       width = 7, height = 9, dpi = OUT_DPI, device = "png")
+message("Saved: sfig_synthetic_motifs.pdf / .png")
+
+#### S5 — gkmpredict: Peak Memory (RSS) ####
 df_speed <- read_csv(PATH_SPEED, show_col_types = FALSE)
 
 df_pred <- df_speed |>
@@ -99,7 +210,7 @@ df_pred_mem <- df_pred |>
   ) |>
   mutate(config_label = factor(config_label, levels = bar_order$config_label))
 
-sfig1 <- ggplot(df_pred_mem,
+sfig5 <- ggplot(df_pred_mem,
                 aes(x = config_label, y = mean_val, fill = version_label)) +
   geom_col(width = 0.7, alpha = 0.9) +
   geom_errorbar(
@@ -114,67 +225,8 @@ sfig1 <- ggplot(df_pred_mem,
        x = "Threads", y = "Peak RSS (MB)") +
   THEME_BASE
 
-ggsave(file.path(OUT_DIR, "sfig_predict_memory.pdf"), sfig1,
+ggsave(file.path(OUT_DIR, "sfig_predict_memory.pdf"), sfig5,
        width = 5, height = 4, device = "pdf")
-ggsave(file.path(OUT_DIR, "sfig_predict_memory.png"), sfig1,
+ggsave(file.path(OUT_DIR, "sfig_predict_memory.png"), sfig5,
        width = 5, height = 4, dpi = OUT_DPI, device = "png")
 message("Saved: sfig_predict_memory.pdf / .png")
-
-#### S2 — Synthetic Test Motifs ####
-logo_colours <- c(A = COL_DNA[["A"]], C = COL_DNA[["C"]],
-                  G = COL_DNA[["G"]], `T` = COL_DNA[["T"]])
-
-motifs_A <- read_meme(PATH_MEME_A)
-motifs_B <- read_meme(PATH_MEME_B)
-motifs_C <- read_meme(PATH_MEME_C)
-
-CTCF_motif <- read_meme(PATH_MEME_CTCF)[[1]]
-
-all_motifs <- c(motifs_A[[1]], motifs_B[[1]], motifs_C[[1]])
-all_motifs[[1]]["name"] <- "A_0"
-all_motifs[[2]]["name"] <- "B_0"
-all_motifs[[3]]["name"] <- "C_0"
-
-sfig2 <- view_motifs(
-    trim_motifs(all_motifs, min.ic = 0.1),
-    use.type            = "ICM",
-    show.positions.once = TRUE,
-    show.names          = TRUE,
-    tryRC               = FALSE,
-    relative_entropy    = TRUE,
-    min.overlap         = 50,
-    colour.scheme       = logo_colours
-  ) +
-  labs(title = "Recovered Synthetic Motifs",
-       x = "Position", y = "IC (bits)") +
-  THEME_BASE +
-  theme(legend.position = "none")
-
-ggsave(file.path(OUT_DIR, "sfig_synthetic_motifs.pdf"), sfig2,
-       width = 7, height = 9, device = "pdf")
-ggsave(file.path(OUT_DIR, "sfig_synthetic_motifs.png"), sfig2,
-       width = 7, height = 9, dpi = OUT_DPI, device = "png")
-message("Saved: sfig_synthetic_motifs.pdf / .png")
-
-#### S3 — CTCF Motif ####
-CTCF_motif["name"] <- "CTCF"
-
-sfig3 <- view_motifs(
-    CTCF_motif,
-    use.type            = "ICM",
-    show.positions.once = TRUE,
-    show.names          = TRUE,
-    tryRC               = FALSE,
-    relative_entropy    = TRUE,
-    colour.scheme       = logo_colours
-  ) +
-  labs(title = "CTCF Binding Site Motif",
-       x = "Position", y = "IC (bits)") +
-  THEME_BASE +
-  theme(legend.position = "none")
-
-ggsave(file.path(OUT_DIR, "sfig_ctcf_motif.pdf"), sfig3,
-       width = 7, height = 3, device = "pdf")
-ggsave(file.path(OUT_DIR, "sfig_ctcf_motif.png"), sfig3,
-       width = 7, height = 3, dpi = OUT_DPI, device = "png")
-message("Saved: sfig_ctcf_motif.pdf / .png")
