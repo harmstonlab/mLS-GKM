@@ -1,6 +1,6 @@
 ## mLS-GKM: a multi-class, multi-threaded, memory-efficient gkm-SVM
 
-`mLS-GKM` builds upon [LS-GKM](https://github.com/Dongwon-Lee/lsgkm), ending gkm-SVM training, prediction and per-base interpretation in four ways:
+`mLS-GKM` builds upon [LS-GKM](https://github.com/Dongwon-Lee/lsgkm), improving gkm-SVM training, prediction and per-base interpretation in four ways:
 
 1. **Multi-class classification.** `gkmtrain` accepts any number of class FASTA files and trains a one-vs-one model with `K(K−1)/2` binary sub-classifiers stored in a single model file.
 2. **Calibrated probability outputs.** With `-P`, training fits per-pair Platt sigmoids by internal 5-fold cross-validation, and prediction produces a calibrated probability vector over all classes via Wu-Lin-Weng pairwise coupling.
