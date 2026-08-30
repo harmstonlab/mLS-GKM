@@ -13,19 +13,19 @@ A separate on-disk checkpointing system (`-C` flag on `gkmtrain`) makes long-run
 
 ### Citation
 
-Please cite the original LS-GKM and gkm-SVM papers if you use this software in your research:
+Please cite the original gkm-SVM and LS-GKM papers if you use this software in your research:
 
-- Ghandi, M.†, Lee, D.†, Mohammad-Noori, M. & Beer, M. A. *Enhanced Regulatory Sequence Prediction Using Gapped k-mer Features.* PLoS Comput Biol 10, e1003711 (2014). doi:10.1371/journal.pcbi.1003711 *† Co-first authors*
+- Ghandi, M.†, Lee, D.†, Mohammad-Noori, M. & Beer, M. A. *Enhanced Regulatory Sequence Prediction Using Gapped k-mer Features.* PLoS Comput Biol 10, e1003711 (2014). [doi:10.1371/journal.pcbi.1003711](https://doi.org/10.1371/journal.pcbi.1003711) *† Co-first authors*
 
-- Lee, D. *LS-GKM: A new gkm-SVM for large-scale Datasets.* Bioinformatics btw142 (2016). doi:10.1093/bioinformatics/btw142
+- Lee, D. *LS-GKM: A new gkm-SVM for large-scale datasets.* Bioinformatics 32, 2196–2198 (2016). [doi:10.1093/bioinformatics/btw142](https://doi.org/10.1093/bioinformatics/btw142)
 
 If you use the `gkmexplain` interpretation tool, please additionally cite:
 
-- Shrikumar, A., Prakash, E. & Kundaje, A. *GkmExplain: fast and accurate interpretation of nonlinear gapped k-mer SVMs.* Bioinformatics 35, i173–i182 (2019). doi:10.1093/bioinformatics/btz322
+- Shrikumar, A., Prakash, E. & Kundaje, A. *GkmExplain: fast and accurate interpretation of nonlinear gapped k-mer SVMs.* Bioinformatics 35, i173–i182 (2019). [doi:10.1093/bioinformatics/btz322](https://doi.org/10.1093/bioinformatics/btz322)
 
-Please cite the `mLS-GKM` Application Note if you use the multi-class, probability, or streaming `gkmexplain` extensions:
+Please cite the `mLS-GKM` arXiv paper if you use the multi-class, per-sequence multi-threading (`-t`), probability, or streaming `gkmexplain` extensions:
 
-- XXXXXXXXXX (citation to be added on publication).
+- Howard, K. & Harmston, N. *mLS-GKM: Efficient Multi-class Regulatory Sequence Classification with Gapped k-mer SVMs*, arXiv [q-bio.GN] [Preprint] (2026). [doi:10.48550/arXiv.2608.20576](https://doi.org/10.48550/arXiv.2608.20576)
 
 
 ### Installation
