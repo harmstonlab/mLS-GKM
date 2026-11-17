@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <float.h>
 
 #include "libsvm_gkm.h"
 
@@ -70,7 +71,15 @@ void print_usage_and_exit()
             " -R           if set, reverse-complement is not considered as the same feature\n"
             " -c <float>   set the regularization parameter SVM-C (default: 1.0)\n"
             " -e <float>   set the precision parameter epsilon (default: 0.001)\n"
-            " -w <float>   set the parameter SVM-C to w*C for the positive set (default: 1.0)\n"
+            " -w <w1[,w2,...]>\n"
+            "              set class weights: SVM-C of class i becomes wi*C. Classes follow\n"
+            "              the order of the FASTA files (class 1 = first). Classes without\n"
+            "              a value use 1.0, so a single value on a binary problem weights\n"
+            "              the positive set (default: 1.0 for all classes)\n"
+            " -wb          set class weights from class sizes: wi = N/(K*ni) for N sequences,\n"
+            "              K classes and ni sequences in class i. Cannot be combined with -w\n"
+            "              NOTE: with -w or -wb, -P probabilities are calibrated to the\n"
+            "              weighted class mix (equal class priors with -wb)\n"
             " -m <float>   set cache memory size in MB (default: 100.0)\n"
             "              NOTE: Large cache signifcantly reduces runtime. >4Gb is recommended\n" 
             " -s           if set, use the shrinking heuristics\n"
@@ -92,7 +101,7 @@ void print_usage_and_exit()
 	exit(0);
 }
 
-void read_problem_multi(const char **classfiles, int nclasses);
+void read_problem_multi(const char **classfiles, int nclasses, int *counts);
 void do_cross_validation(const char *filename);
 
 static struct svm_parameter param;
@@ -126,6 +135,35 @@ static char* readline(FILE *input)
     return line;
 }
 
+// parse the comma-separated class weights of -w (class 1 first); exits on invalid input
+static int parse_class_weights(const char *arg, int nclasses, double *weights)
+{
+    int n = 0;
+    const char *p = arg;
+    while (1) {
+        char *endptr = NULL;
+        double v = strtod(p, &endptr);
+        if (endptr == p || (*endptr != ',' && *endptr != '\0')) {
+            clog_error(CLOG(LOGGER_ID), "invalid -w value '%s': expected a comma-separated list of numbers", arg);
+            exit(1);
+        }
+        if (!(v > 0.0 && v <= DBL_MAX)) {
+            clog_error(CLOG(LOGGER_ID), "invalid -w value '%s': weights must be positive and finite", arg);
+            exit(1);
+        }
+        if (n == nclasses) {
+            clog_error(CLOG(LOGGER_ID), "invalid -w value '%s': more weights than classes (%d)", arg, nclasses);
+            exit(1);
+        }
+        weights[n++] = v;
+        if (*endptr == '\0') {
+            break;
+        }
+        p = endptr + 1;
+    }
+    return n;
+}
+
 int main(int argc, char** argv)
 {
     char model_file_name[1024];
@@ -137,6 +175,9 @@ int main(int argc, char** argv)
     int rseed = 1;
     int tmpM;
     char *checkpoint_prefix = NULL;
+    const char *weight_arg = NULL; // -w
+    int balance_weights = 0; // -wb
+    int weight_opt_count = 0;
 
     /* Initialize the logger */
     if (clog_init_fd(LOGGER_ID, 1) != 0) {
@@ -163,8 +204,8 @@ int main(int argc, char** argv)
     param.eps = 1e-3;
     param.shrinking = 0;
     param.nr_weight = 0;
-    param.weight_label = (int *) malloc(sizeof(int)*1);
-    param.weight = (double *) malloc(sizeof(double)*1);
+    param.weight_label = NULL; // allocated once the number of classes is known
+    param.weight = NULL;
     param.norc = 0;
     param.p = 0.1; //not used
     param.probability = 0; //probability estimates enabled in this binary
@@ -208,9 +249,16 @@ int main(int argc, char** argv)
 				param.eps = atof(optarg);
 				break;
 			case 'w':
-                param.nr_weight = 1;
-                param.weight_label[0] = 1;
-                param.weight[0] = atof(optarg);
+                if (++weight_opt_count > 1) {
+                    clog_error(CLOG(LOGGER_ID), "-w and -wb are mutually exclusive and can only be given once");
+                    exit(1);
+                }
+                // getopt reads -wb as -w with the argument "b"
+                if (strcmp(optarg, "b") == 0) {
+                    balance_weights = 1;
+                } else {
+                    weight_arg = optarg;
+                }
 				break;
             case 'm':
                 param.cache_size = atof(optarg);
@@ -266,6 +314,16 @@ int main(int argc, char** argv)
     }
     char *outprefix = argv[index];
 
+    param.weight_label = (int *) malloc(sizeof(int) * (size_t) nclasses);
+    param.weight = (double *) malloc(sizeof(double) * (size_t) nclasses);
+    if (weight_arg) {
+        // classes without a value keep weight 1 (svm_train starts every class at C)
+        param.nr_weight = parse_class_weights(weight_arg, nclasses, param.weight);
+        for (int i = 0; i < param.nr_weight; i++) {
+            param.weight_label[i] = i+1;
+        }
+    }
+
     switch(verbosity) 
     {
         case 0:
@@ -309,8 +367,10 @@ int main(int argc, char** argv)
     clog_info(CLOG(LOGGER_ID), "  H = %g", param.H);
     }
     clog_info(CLOG(LOGGER_ID), "  C = %g", param.C);
-    if (param.nr_weight == 1) {
-    clog_info(CLOG(LOGGER_ID), "  w = %g", param.weight[0]);
+    if (weight_arg) {
+    clog_info(CLOG(LOGGER_ID), "  w = %s", weight_arg);
+    } else if (balance_weights) {
+    clog_info(CLOG(LOGGER_ID), "  w = balanced (-wb)");
     }
     clog_info(CLOG(LOGGER_ID), "  eps = %g", param.eps);
     clog_info(CLOG(LOGGER_ID), "  shrinking = %s", param.shrinking ? "yes" : "no");
@@ -341,7 +401,24 @@ int main(int argc, char** argv)
 
     max_line_len = 1024;
     line = (char *) malloc(sizeof(char) * ((size_t) max_line_len));
-    read_problem_multi((const char**)classfiles, nclasses);
+    int *class_counts = (int *) malloc(sizeof(int) * (size_t) nclasses);
+    read_problem_multi((const char**)classfiles, nclasses, class_counts);
+
+    if (balance_weights) {
+        // w_i = N/(K*n_i): every class carries the same total weight
+        param.nr_weight = nclasses;
+        for (int i = 0; i < nclasses; i++) {
+            param.weight_label[i] = i+1;
+            param.weight[i] = (double) prob.l / ((double) nclasses * (double) class_counts[i]);
+        }
+    }
+    if (param.nr_weight > 0) {
+        clog_info(CLOG(LOGGER_ID), "Class weights:");
+        for (int i = 0; i < nclasses; i++) {
+            double w = (i < param.nr_weight) ? param.weight[i] : 1.0;
+            clog_info(CLOG(LOGGER_ID), "  class_%d: n = %d, weight = %g, C = %g", i+1, class_counts[i], w, w*param.C);
+        }
+    }
 
     error_msg = svm_check_parameter(&prob,&param);
     if(error_msg) {
@@ -393,6 +470,7 @@ int main(int argc, char** argv)
     free(prob.x);
     free(line);
     free(classfiles);
+    free(class_counts);
 
 	return 0;
 }
@@ -479,13 +557,16 @@ int count_sequences(const char *filename)
     return nseqs;
 }
 
-void read_problem_multi(const char **classfiles, int nclasses)
+void read_problem_multi(const char **classfiles, int nclasses, int *counts)
 {
     // count sequences per class
-    int *counts = (int *) malloc(sizeof(int) * (size_t) nclasses);
     int total = 0;
     for (int i = 0; i < nclasses; i++) {
         counts[i] = count_sequences(classfiles[i]);
+        if (counts[i] == 0) {
+            clog_error(CLOG(LOGGER_ID), "no sequences found in %s", classfiles[i]);
+            exit(1);
+        }
         total += counts[i];
     }
 
@@ -499,8 +580,6 @@ void read_problem_multi(const char **classfiles, int nclasses)
         read_fasta_file(classfiles[i], offset, i+1);
         offset += counts[i];
     }
-
-    free(counts);
 }
 
 void do_cross_validation(const char *filename)

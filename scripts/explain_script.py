@@ -185,7 +185,13 @@ def read_explain_tsv(
     score_count: int,
     base_block_count: int,
     base_block_index: int,
+    minus_block_index: Optional[int] = None,
 ) -> List[ExplainRecord]:
+    """Read gkmexplain output, keeping one base-score block per record.
+
+    If minus_block_index is given, the kept block is block[base_block_index] - block[minus_block_index]
+    (used for -P output, where pair (i, j) is analysed as block_i - block_j).
+    """
     records: List[ExplainRecord] = []
     with path.open("r", newline="") as handle:
         for line_no, raw in enumerate(handle, start=1):
@@ -210,12 +216,15 @@ def read_explain_tsv(
             except ValueError as exc:
                 raise ValueError(f"{path}: line {line_no}: non-numeric score field") from exc
 
-            if base_block_index < 0 or base_block_index >= len(base_fields):
-                raise ValueError(
-                    f"{path}: line {line_no}: base_block_index={base_block_index} out of range for {len(base_fields)} base blocks"
-                )
+            for name, block_index in (("base_block_index", base_block_index), ("minus_block_index", minus_block_index)):
+                if block_index is not None and (block_index < 0 or block_index >= len(base_fields)):
+                    raise ValueError(
+                        f"{path}: line {line_no}: {name}={block_index} out of range for {len(base_fields)} base blocks"
+                    )
 
             contrib = _parse_contrib_field(base_fields[base_block_index])
+            if minus_block_index is not None:
+                contrib = contrib - _parse_contrib_field(base_fields[minus_block_index])
             records.append(ExplainRecord(header=header, class_scores=scores, contrib=contrib))
 
     return records
@@ -244,12 +253,14 @@ def null_perpos_from_explain_tsv(
     score_count: int,
     base_block_count: int,
     base_block_index: int,
+    minus_block_index: Optional[int] = None,
 ):
     recs = read_explain_tsv(
         path,
         score_count=score_count,
         base_block_count=base_block_count,
         base_block_index=base_block_index,
+        minus_block_index=minus_block_index,
     )
     return [np.sum(r.contrib, axis=-1) for r in recs]
 
@@ -290,6 +301,16 @@ def build_parser(repo_root: Path) -> argparse.ArgumentParser:
         choices=["forward", "reverse"],
         default="forward",
         help="Direction for the selected boundary (forward=i_vs_j, reverse=j_vs_i).",
+    )
+    parser.add_argument(
+        "--explain-type",
+        choices=["D", "P"],
+        default="D",
+        help=(
+            "Type of gkmexplain output. D (default): -D output, with one score and one base-score block per class "
+            "pair (i<j). P: -P output, with one probability and one base-score block per class; the selected pair "
+            "(i, j) is analysed as block_i - block_j, i.e. the contribution to P(i) - P(j)."
+        ),
     )
     parser.add_argument(
         "--score-filter",
@@ -352,17 +373,31 @@ def main() -> None:
     print("FASTA records:", len(fasta_records))
 
     n_dec = class_count * (class_count - 1) // 2
+    pairs = pairwise_indices(class_count)
     if analyse_boundary_index is None and analyse_pair_index is not None:
         analyse_boundary_index = analyse_pair_index
     if analyse_boundary_index is None:
         raise ValueError("--analyse-boundary-index is required")
+    if analyse_boundary_index < 0 or analyse_boundary_index >= n_dec:
+        raise ValueError(f"analyse_boundary_index={analyse_boundary_index} out of range for {n_dec} pairwise scores")
 
-    explain_records = read_explain_tsv(
-        args.explain,
-        score_count=n_dec,
-        base_block_count=n_dec,
-        base_block_index=analyse_boundary_index,
+    # -D output: one score and one base-score block per class pair (i<j); use the pair's block.
+    # -P output: one probability and one base-score block per class; use block_i - block_j for pair (i, j).
+    if args.explain_type == "P":
+        block_count = class_count
+        plus_block, minus_block = pairs[analyse_boundary_index]
+    else:
+        block_count = n_dec
+        plus_block, minus_block = analyse_boundary_index, None
+    block_kwargs = dict(
+        score_count=block_count,
+        base_block_count=block_count,
+        base_block_index=plus_block,
+        minus_block_index=minus_block,
     )
+    print("Explain type:", args.explain_type, "| blocks per record:", block_count)
+
+    explain_records = read_explain_tsv(args.explain, **block_kwargs)
     print("Explain records:", len(explain_records))
 
     fasta_by_header = {r.header: r for r in fasta_records}
@@ -400,14 +435,20 @@ def main() -> None:
         contrib_raw.append(er.contrib.astype(np.float32, copy=False))
         onehot.append(seq_to_onehot(fr.sequence))
 
-    scores_pairwise = np.stack(pairwise_scores_list, axis=0)
-    scores = np.stack(
-        [pairwise_to_margins(row, class_count=class_count) for row in scores_pairwise],
-        axis=0,
-    )
+    record_scores = np.stack(pairwise_scores_list, axis=0)
+    if args.explain_type == "P":
+        # Per-class probabilities; the pairwise score for (i, j) is P(i) - P(j), matching the block difference.
+        scores = record_scores
+        scores_pairwise = np.stack([record_scores[:, i] - record_scores[:, j] for i, j in pairs], axis=1)
+    else:
+        scores_pairwise = record_scores
+        scores = np.stack(
+            [pairwise_to_margins(row, class_count=class_count) for row in scores_pairwise],
+            axis=0,
+        )
     pair_labels = [
         f"{class_names[i] if i < len(class_names) else f'class{i}'}_vs_{class_names[j] if j < len(class_names) else f'class{j}'}"
-        for i, j in pairwise_indices(class_count)
+        for i, j in pairs
     ]
     print("Pairwise scores shape:", scores_pairwise.shape)
     print("Margins shape:", scores.shape)
@@ -433,12 +474,7 @@ def main() -> None:
     else:
         impscores = contrib_raw
 
-    hyp_records = read_explain_tsv(
-        args.hyp_explain,
-        score_count=n_dec,
-        base_block_count=n_dec,
-        base_block_index=analyse_boundary_index,
-    )
+    hyp_records = read_explain_tsv(args.hyp_explain, **block_kwargs)
     hyp_by_header = {r.header: r for r in hyp_records}
     hyp_scores = []
     for h, seq in zip(headers, seqs):
@@ -488,12 +524,10 @@ def main() -> None:
     if args.null_explain is None or not args.null_explain.exists():
         raise SystemExit("TF-MoDISco requires --null-explain")
 
-    dnshuff_perposimp = null_perpos_from_explain_tsv(
-        args.null_explain,
-        score_count=n_dec,
-        base_block_count=n_dec,
-        base_block_index=analyse_boundary_index,
-    )
+    dnshuff_perposimp = null_perpos_from_explain_tsv(args.null_explain, **block_kwargs)
+    if pair_order == "reverse":
+        # Flip the null the same way as the importance/hypothetical scores, so TF-MoDISco compares like with like.
+        dnshuff_perposimp = [-1.0 * x for x in dnshuff_perposimp]
     print("Loaded null sequences:", len(dnshuff_perposimp), "for label", analyse_label)
 
     def subset_by_label(target_label: str):

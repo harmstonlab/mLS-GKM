@@ -32,8 +32,10 @@ from typing import BinaryIO
 
 TRAIN_MAGIC = b"LSGKM_TRAIN_CKPT\x00"
 CV_MAGIC = b"LSGKM_CV_CKPT\x00"
+CV2_MAGIC = b"LSGKM_CV_CKPT2\x00"
 TRAIN_MAGIC_TEXT = TRAIN_MAGIC.rstrip(b"\x00")
 CV_MAGIC_TEXT = CV_MAGIC.rstrip(b"\x00")
+CV2_MAGIC_TEXT = CV2_MAGIC.rstrip(b"\x00")
 
 
 class TrainHeader(ctypes.Structure):
@@ -78,6 +80,35 @@ class CvHeader(ctypes.Structure):
         ("M", ctypes.c_int32),
         ("norc", ctypes.c_int32),
         ("shrinking", ctypes.c_int32),
+        ("H", ctypes.c_double),
+        ("gamma", ctypes.c_double),
+        ("C", ctypes.c_double),
+        ("eps", ctypes.c_double),
+        ("perm_hash", ctypes.c_uint64),
+        ("fold_hash", ctypes.c_uint64),
+    ]
+
+
+# LSGKM_CV_CKPT2: CvHeader plus nr_weight; the class weights follow the header
+class CvHeaderV2(ctypes.Structure):
+    _fields_ = [
+        ("magic", ctypes.c_char * len(CV2_MAGIC)),
+        ("version", ctypes.c_int32),
+        ("l", ctypes.c_int32),
+        ("nr_fold", ctypes.c_int32),
+        ("nr_class", ctypes.c_int32),
+        ("num_dec_values", ctypes.c_int32),
+        ("icv", ctypes.c_int32),
+        ("probability", ctypes.c_int32),
+        ("svm_type", ctypes.c_int32),
+        ("kernel_type", ctypes.c_int32),
+        ("L", ctypes.c_int32),
+        ("k", ctypes.c_int32),
+        ("d", ctypes.c_int32),
+        ("M", ctypes.c_int32),
+        ("norc", ctypes.c_int32),
+        ("shrinking", ctypes.c_int32),
+        ("nr_weight", ctypes.c_int32),
         ("H", ctypes.c_double),
         ("gamma", ctypes.c_double),
         ("C", ctypes.c_double),
@@ -139,10 +170,13 @@ def read_double_array(fp: BinaryIO, n: int) -> list[float]:
 
 def detect_kind(path: str) -> str:
     with open(path, "rb") as fp:
-        head = fp.read(max(len(TRAIN_MAGIC), len(CV_MAGIC)))
+        head = fp.read(max(len(TRAIN_MAGIC), len(CV_MAGIC), len(CV2_MAGIC)))
     if head.startswith(TRAIN_MAGIC_TEXT):
         return "train"
-    if head.startswith(CV_MAGIC_TEXT):
+    # compare including the NUL: the v1 CV magic is a prefix of the v2 one
+    if head.startswith(CV2_MAGIC):
+        return "cv2"
+    if head.startswith(CV_MAGIC):
         return "cv"
     return "unknown"
 
@@ -225,14 +259,21 @@ def parse_train(path: str, show_records: bool, max_records: int, show_all: bool)
     return 0
 
 
-def parse_cv(path: str, show_records: bool, max_records: int, show_all: bool) -> int:
+def parse_cv(path: str, show_records: bool, max_records: int, show_all: bool, v2: bool = False) -> int:
+    header_cls, magic_text = (CvHeaderV2, CV2_MAGIC_TEXT) if v2 else (CvHeader, CV_MAGIC_TEXT)
     with open(path, "rb") as fp:
-        header_raw = read_exact(fp, ctypes.sizeof(CvHeader))
-        header = CvHeader.from_buffer_copy(header_raw)
+        header_raw = read_exact(fp, ctypes.sizeof(header_cls))
+        header = header_cls.from_buffer_copy(header_raw)
 
-        if cstring(bytes(header.magic)) != CV_MAGIC_TEXT.decode("ascii"):
+        if cstring(bytes(header.magic)) != magic_text.decode("ascii"):
             print("Not a CV checkpoint (magic mismatch)", file=sys.stderr)
             return 2
+
+        weight_labels: list[int] = []
+        weights: list[float] = []
+        if v2 and header.nr_weight > 0:
+            weight_labels = read_int32_array(fp, header.nr_weight)
+            weights = read_double_array(fp, header.nr_weight)
 
         records: list[FoldRecord] = []
         while True:
@@ -271,6 +312,11 @@ def parse_cv(path: str, show_records: bool, max_records: int, show_all: bool) ->
     )
     print(f"H={header.H}, gamma={header.gamma}, C={header.C}, eps={header.eps}")
     print(f"perm_hash={header.perm_hash}, fold_hash={header.fold_hash}")
+    if v2:
+        print(f"nr_weight={header.nr_weight}")
+    if weight_labels:
+        print(f"weight_label={weight_labels}")
+        print(f"weight={weights}")
 
     done = sorted({rec.fold_index for rec in records})
     print(f"Fold records: {len(records)} (unique done folds: {done})")
@@ -308,6 +354,8 @@ def main() -> int:
     kind = detect_kind(args.checkpoint)
     if kind == "train":
         return parse_train(args.checkpoint, show_records, args.max_records, args.all)
+    if kind == "cv2":
+        return parse_cv(args.checkpoint, show_records, args.max_records, args.all, v2=True)
     if kind == "cv":
         return parse_cv(args.checkpoint, show_records, args.max_records, args.all)
 

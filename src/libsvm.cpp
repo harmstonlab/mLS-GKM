@@ -1742,9 +1742,12 @@ static decision_function svm_train_one(
 }
 
 // Platt's binary SVM Probablistic Output: an improvement from Lin et al.
+// wp and wn are the class weights (per-class C) of the positive and negative
+// class. Each sample's likelihood term is weighted by its class weight, so the
+// sigmoid is calibrated to the weighted class mix; wp == wn is the unweighted fit.
 static void sigmoid_train(
-    int l, const double *dec_values, const double *labels, 
-    double& A, double& B)
+    int l, const double *dec_values, const double *labels,
+    double wp, double wn, double& A, double& B)
 {
     double prior1=0, prior0 = 0;
     int i;
@@ -1752,6 +1755,18 @@ static void sigmoid_train(
     for (i=0;i<l;i++)
         if (labels[i] > 0) prior1+=1;
         else prior0+=1;
+
+    // per-sample class weights, normalised to a mean of 1
+    double w1=1.0, w0=1.0;
+    if (wp != wn)
+    {
+        double scale = l/(prior1*wp + prior0*wn);
+        w1 = wp*scale;
+        w0 = wn*scale;
+    }
+    // from here on prior1/prior0 are the weighted class sizes
+    prior1 *= w1;
+    prior0 *= w0;
     
     int max_iter=100;   // Maximal number of iterations
     double min_step=1e-10;  // Minimal step taken in line search
@@ -1760,6 +1775,7 @@ static void sigmoid_train(
     double hiTarget=(prior1+1.0)/(prior1+2.0);
     double loTarget=1/(prior0+2.0);
     double *t=Malloc(double,l);
+    double *w=Malloc(double,l);
     double fApB,p,q,h11,h22,h21,g1,g2,det,dA,dB,gd,stepsize;
     double newA,newB,newf,d1,d2;
     int iter;
@@ -1770,13 +1786,13 @@ static void sigmoid_train(
 
     for (i=0;i<l;i++)
     {
-        if (labels[i]>0) t[i]=hiTarget;
-        else t[i]=loTarget;
+        if (labels[i]>0) { t[i]=hiTarget; w[i]=w1; }
+        else { t[i]=loTarget; w[i]=w0; }
         fApB = dec_values[i]*A+B;
         if (fApB>=0)
-            fval += t[i]*fApB + log(1+exp(-fApB));
+            fval += w[i]*(t[i]*fApB + log(1+exp(-fApB)));
         else
-            fval += (t[i] - 1)*fApB +log(1+exp(fApB));
+            fval += w[i]*((t[i] - 1)*fApB +log(1+exp(fApB)));
     }
     for (iter=0;iter<max_iter;iter++)
     {
@@ -1797,11 +1813,11 @@ static void sigmoid_train(
                 p=1.0/(1.0+exp(fApB));
                 q=exp(fApB)/(1.0+exp(fApB));
             }
-            d2=p*q;
+            d2=w[i]*p*q;
             h11+=dec_values[i]*dec_values[i]*d2;
             h22+=d2;
             h21+=dec_values[i]*d2;
-            d1=t[i]-p;
+            d1=w[i]*(t[i]-p);
             g1+=dec_values[i]*d1;
             g2+=d1;
         }
@@ -1829,9 +1845,9 @@ static void sigmoid_train(
             {
                 fApB = dec_values[i]*newA+newB;
                 if (fApB >= 0)
-                    newf += t[i]*fApB + log(1+exp(-fApB));
+                    newf += w[i]*(t[i]*fApB + log(1+exp(-fApB)));
                 else
-                    newf += (t[i] - 1)*fApB +log(1+exp(fApB));
+                    newf += w[i]*((t[i] - 1)*fApB +log(1+exp(fApB)));
             }
             // Check sufficient decrease
             if (newf<fval+0.0001*stepsize*gd)
@@ -1853,6 +1869,7 @@ static void sigmoid_train(
     if (iter>=max_iter)
         clog_warn(CLOG(LOGGER_ID), "Reaching maximal iterations in two-class probability estimates");
     free(t);
+    free(w);
 }
 
 static double sigmoid_predict(double decision_value, double A, double B)
@@ -2119,7 +2136,7 @@ static void svm_binary_svc_probability(
             }
         }
     }       
-    sigmoid_train(prob->l,dec_values,prob->y,probA,probB);
+    sigmoid_train(prob->l,dec_values,prob->y,Cp,Cn,probA,probB);
 
     clog_info(CLOG(LOGGER_ID), "estimation of sigmoid parameters finished");
     if (cv_fp)
@@ -2248,7 +2265,7 @@ static void svm_group_classes(const svm_problem *prob, int *nr_class_ret, int **
 // Interface functions
 //
 static const char kTrainCkptMagic[] = "LSGKM_TRAIN_CKPT";
-static const char kCvCkptMagic[] = "LSGKM_CV_CKPT";
+static const char kCvCkptMagic[] = "LSGKM_CV_CKPT2"; // 2: class weights stored after the header
 
 static int32_t svm_ckpt_current_version(void)
 {
@@ -2311,6 +2328,7 @@ typedef struct {
     int32_t M;
     int32_t norc;
     int32_t shrinking;
+    int32_t nr_weight;
     double H;
     double gamma;
     double C;
@@ -2331,6 +2349,44 @@ static int svm_pair_index(int i, int j, int nr_class)
         }
     }
     return -1;
+}
+
+// class weights follow the fixed header in both checkpoint types
+static int svm_ckpt_write_weights(FILE *fp, const svm_parameter *param)
+{
+    if (param->nr_weight > 0) {
+        if (fwrite(param->weight_label, sizeof(int32_t), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight) {
+            return -1;
+        }
+        if (fwrite(param->weight, sizeof(double), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int svm_ckpt_check_weights(FILE *fp, const svm_parameter *param)
+{
+    if (param->nr_weight > 0) {
+        int *weight_label = Malloc(int, param->nr_weight);
+        double *weight = Malloc(double, param->nr_weight);
+        if (fread(weight_label, sizeof(int32_t), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight ||
+            fread(weight, sizeof(double), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight) {
+            free(weight_label);
+            free(weight);
+            return -1;
+        }
+        for (int i = 0; i < param->nr_weight; i++) {
+            if (weight_label[i] != param->weight_label[i] || weight[i] != param->weight[i]) {
+                free(weight_label);
+                free(weight);
+                return -1;
+            }
+        }
+        free(weight_label);
+        free(weight);
+    }
+    return 0;
 }
 
 static int svm_ckpt_write_train_header(FILE *fp, const svm_parameter *param, int l, int nr_class,
@@ -2367,13 +2423,8 @@ static int svm_ckpt_write_train_header(FILE *fp, const svm_parameter *param, int
     if (fwrite(count, sizeof(int32_t), (size_t)nr_class, fp) != (size_t)nr_class) {
         return -1;
     }
-    if (param->nr_weight > 0) {
-        if (fwrite(param->weight_label, sizeof(int32_t), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight) {
-            return -1;
-        }
-        if (fwrite(param->weight, sizeof(double), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight) {
-            return -1;
-        }
+    if (svm_ckpt_write_weights(fp, param) != 0) {
+        return -1;
     }
     if (fflush(fp) != 0) {
         return -1;
@@ -2427,27 +2478,7 @@ static int svm_ckpt_read_train_header(FILE *fp, const svm_parameter *param, int 
     free(label_buf);
     free(count_buf);
 
-    if (param->nr_weight > 0) {
-        int *weight_label = Malloc(int, param->nr_weight);
-        double *weight = Malloc(double, param->nr_weight);
-        if (fread(weight_label, sizeof(int32_t), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight ||
-            fread(weight, sizeof(double), (size_t)param->nr_weight, fp) != (size_t)param->nr_weight) {
-            free(weight_label);
-            free(weight);
-            return -1;
-        }
-        for (int i = 0; i < param->nr_weight; i++) {
-            if (weight_label[i] != param->weight_label[i] || weight[i] != param->weight[i]) {
-                free(weight_label);
-                free(weight);
-                return -1;
-            }
-        }
-        free(weight_label);
-        free(weight);
-    }
-
-    return 0;
+    return svm_ckpt_check_weights(fp, param);
 }
 
 static int svm_ckpt_append_train_pair(FILE *fp, int i, int j, int alpha_len,
@@ -2552,6 +2583,7 @@ static int svm_ckpt_write_cv_header(FILE *fp, const svm_parameter *param, int l,
     header.M = param->M;
     header.norc = param->norc;
     header.shrinking = param->shrinking;
+    header.nr_weight = param->nr_weight;
     header.H = param->H;
     header.gamma = param->gamma;
     header.C = param->C;
@@ -2560,6 +2592,9 @@ static int svm_ckpt_write_cv_header(FILE *fp, const svm_parameter *param, int l,
     header.fold_hash = svm_hash_ints(fold_start, nr_fold + 1);
 
     if (fwrite(&header, sizeof(header), 1, fp) != 1) {
+        return -1;
+    }
+    if (svm_ckpt_write_weights(fp, param) != 0) {
         return -1;
     }
     if (fflush(fp) != 0) {
@@ -2589,14 +2624,15 @@ static int svm_ckpt_read_cv_header(FILE *fp, const svm_parameter *param, int l, 
         header.k != param->k || header.d != param->d || header.M != param->M ||
         header.norc != param->norc || header.shrinking != param->shrinking ||
         header.H != param->H || header.gamma != param->gamma ||
-        header.C != param->C || header.eps != param->eps) {
+        header.C != param->C || header.eps != param->eps ||
+        header.nr_weight != param->nr_weight) {
         return -1;
     }
     if (header.perm_hash != svm_hash_ints(perm, l) ||
         header.fold_hash != svm_hash_ints(fold_start, nr_fold + 1)) {
         return -1;
     }
-    return 0;
+    return svm_ckpt_check_weights(fp, param);
 }
 
 static int svm_ckpt_append_cv_fold(FILE *fp, int fold_index, int fold_count, int num_dec_values,

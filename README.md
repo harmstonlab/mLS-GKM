@@ -94,7 +94,15 @@ Available options (run `gkmtrain` with no arguments for the full list):
  -R           if set, reverse-complement is not considered as the same feature
  -c <float>   set the regularization parameter SVM-C (default: 1.0)
  -e <float>   set the precision parameter epsilon (default: 0.001)
- -w <float>   set the parameter SVM-C to w*C for the positive set (default: 1.0)
+ -w <w1[,w2,...]>
+              set class weights: SVM-C of class i becomes wi*C. Classes follow
+              the order of the FASTA files (class 1 = first). Classes without
+              a value use 1.0, so a single value on a binary problem weights
+              the positive set (default: 1.0 for all classes)
+ -wb          set class weights from class sizes: wi = N/(K*ni) for N sequences,
+              K classes and ni sequences in class i. Cannot be combined with -w
+              NOTE: with -w or -wb, -P probabilities are calibrated to the
+              weighted class mix (equal class priors with -wb)
  -m <float>   set cache memory size in MB (default: 100.0)
               NOTE: Large cache signifcantly reduces runtime. >4Gb is recommended
  -s           if set, use the shrinking heuristics
@@ -114,6 +122,8 @@ Available options (run `gkmtrain` with no arguments for the full list):
 ```
 
 
+
+**Class imbalance.** By default every class uses the same SVM-C, so with unequal class sizes the larger classes can dominate the decision boundaries. `-w w1,w2,...` scales the C of each class (in the order of the FASTA files) in every pairwise sub-classifier; a single value keeps the LS-GKM behaviour of weighting the positive set. `-wb` sets the weights from the class sizes as `wi = N/(K*ni)`, so that every class carries the same total weight. With `-P`, the probability calibration uses the same weights, so the probabilities reflect the weighted class mix (equal class priors with `-wb`). Checkpoints record the weights: re-running with different weights starts a new checkpoint instead of resuming.
 
 To train a 3-class probability-calibrated model with checkpointing:
 
